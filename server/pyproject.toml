@@ -1,0 +1,32 @@
+[project]
+name = "tomyou-ea"
+version = "0.1.0"
+description = "tomyou-ea"
+authors = [
+{ name = "tomyou" }
+]
+dependencies = [
+    "fastapi[standard]>=0.112.2",
+    "injector>=0.22.0",
+    "matplotlib>=3.10.8",
+    "numpy>=2.1.0",
+    "pandas>=2.2.2",
+    "pydantic>=2.8.2",
+    "python-dotenv>=1.0.1",
+    "pyzmq>=27.1.0",
+]
+readme = "README.md"
+requires-python = ">= 3.11"
+
+[tool.setuptools]
+py-modules = ["app_server"]
+
+[dependency-groups]
+dev = [
+    "backtesting>=0.6.5",
+    "mypy>=1.19.1",
+    "pytest>=9.0.2",
+    "requests>=2.32.5",
+    "ruff>=0.14.14",
+    "yfinance>=1.1.0",
+]

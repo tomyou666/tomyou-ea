@@ -1,5 +1,4 @@
 {
-  "python.defaultInterpreterPath": "/workspaces/app-server/.venv/bin",
   "python.analysis.typeCheckingMode": "basic",
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {

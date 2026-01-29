@@ -27,31 +27,35 @@
       "name": "fastapi起動（デバッグモード）",
       "type": "debugpy",
       "request": "launch",
-      "module": "uvicorn",
+      "module": "fastapi",
       "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}/",
+      "cwd": "${workspaceFolder}/server",
       "env": {
         "IS_DEBUG": "TRUE"
       },
       "args": [
-        "app_server.main:app",
+        "dev",
+        "app_server/main.py",
         "--host",
         "0.0.0.0",
-        "--reload",
+        "--port",
+        "8000",
       ],
     },
     {
       "name": "fastapi起動",
       "type": "debugpy",
       "request": "launch",
-      "module": "uvicorn",
+      "module": "fastapi",
       "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}/",
+      "cwd": "${workspaceFolder}/server",
       "args": [
-        "app_server.main:app",
+        "dev",
+        "app_server/main.py",
         "--host",
         "0.0.0.0",
-        "--reload",
+        "--port",
+        "8000",
       ],
     },
     {
@@ -72,6 +76,10 @@
       "module": "pytest",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
+      "args": [
+        "-s",
+        "-v"
+      ],
       "env": {
         "IS_DEBUG": "TRUE"
       },

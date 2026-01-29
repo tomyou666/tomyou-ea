@@ -3,3 +3,5 @@
 .env
 .env.development
 *.egg-info
+**/pnl_summary
+**/trade_results
