@@ -67,7 +67,7 @@ tomyou-ea/
 cd server
 uv sync
 # 開発時は resources.develop/setting.ini を編集可能
-uv run uvicorn app_server.main:app --host 0.0.0.0 --port 8000
+uv run fastapi dev app_server/main.py --port 8000
 ```
 
 - ZeroMQ: 受信ポート **5555**、送信ポート **5556**（`resources/setting.ini` または `resources.develop/setting.ini` の `[ZMQ]` で変更可能）
