@@ -1,4 +1,4 @@
-# 命令部（設計書 4.5）
+# 命令部
 
 from app_server.service.order.base import OrderSender
 from app_server.service.order.mock_order_sender import MockOrderSender

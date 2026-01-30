@@ -1,7 +1,6 @@
-"""命令部モックテスト（設計書 10.4）"""
+"""命令部モックテスト"""
 
 import pytest
-
 from app_server.model.trading import OrderCommand
 from app_server.service.order.mock_order_sender import MockOrderSender
 

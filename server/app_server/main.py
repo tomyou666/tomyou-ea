@@ -2,17 +2,16 @@ import asyncio
 import json
 from contextlib import asynccontextmanager
 
+import app_server.share.global_value as g
 import zmq
 import zmq.asyncio
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-import app_server.share.global_value as g
 from app_server.config.di import DI
 from app_server.config.trading_settings import get_zmq_recv_port, get_zmq_send_port
 from app_server.routers import trading_router
 from app_server.service.core_logic.base import CoreLogic
 from app_server.share.logger_util import get_logger
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 logger = get_logger()
 
@@ -22,7 +21,7 @@ _zmq_push_socket: zmq.Socket | None = None
 
 
 async def _zmq_receiver(recv_port: int) -> None:
-    """ZeroMQ PULL でティック・注文結果を受信し、コアロジックに渡す（設計書 3.3）"""
+    """ZeroMQ PULL でティック・注文結果を受信し、コアロジックに渡す"""
     ctx = zmq.asyncio.Context()
     socket = ctx.socket(zmq.PULL)
     socket.bind(f"tcp://*:{recv_port}")
@@ -37,10 +36,7 @@ async def _zmq_receiver(recv_port: int) -> None:
                 if raw.startswith("{"):
                     try:
                         data = json.loads(raw)
-                        if (
-                            isinstance(data, dict)
-                            and data.get("type") == "order_result"
-                        ):
+                        if isinstance(data, dict) and data.get("type") == "order_result":
                             core_logic.on_order_result(raw)
                             continue
                     except json.JSONDecodeError:
@@ -56,7 +52,7 @@ async def _zmq_receiver(recv_port: int) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: ARG001
-    """起動時に ZeroMQ を初期化し、受信タスクを開始する（設計書 2.2, 11.1）"""
+    """起動時に ZeroMQ を初期化し、受信タスクを開始する"""
     global _zmq_context, _zmq_push_socket, g
     recv_port = get_zmq_recv_port()
     send_port = get_zmq_send_port()

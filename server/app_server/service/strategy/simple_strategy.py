@@ -1,4 +1,4 @@
-"""シンプルな戦略の例（設計書 4.3）"""
+"""シンプルな戦略の例"""
 
 from app_server.model.trading import Signal, SignalResult, TickDto
 from app_server.service.strategy.base import Strategy
@@ -28,9 +28,7 @@ class SimpleStrategy(Strategy):
         self.tp_pips = tp_pips
         self._prev_mid: float | None = None
 
-    def next(
-        self, tick: TickDto, context: object | None = None
-    ) -> Signal | SignalResult:
+    def next(self, tick: TickDto, context: object | None = None) -> Signal | SignalResult:
         if tick.spread > self.max_spread:
             return SignalResult(
                 signal=Signal.HOLD,

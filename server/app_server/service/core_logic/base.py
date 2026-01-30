@@ -1,4 +1,4 @@
-"""コアロジック部の抽象基底クラス（設計書 4.4）"""
+"""コアロジック部の抽象基底クラス"""
 
 from abc import ABCMeta, abstractmethod
 

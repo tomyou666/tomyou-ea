@@ -1,4 +1,4 @@
-"""命令部の抽象基底クラス（設計書 4.5）"""
+"""命令部の抽象基底クラス"""
 
 from abc import ABCMeta, abstractmethod
 

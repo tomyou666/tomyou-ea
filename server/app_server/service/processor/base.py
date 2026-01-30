@@ -1,4 +1,4 @@
-"""加工部の抽象基底クラス（設計書 4.2）"""
+"""加工部の抽象基底クラス"""
 
 from abc import ABCMeta, abstractmethod
 

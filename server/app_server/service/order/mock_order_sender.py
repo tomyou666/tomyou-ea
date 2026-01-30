@@ -1,4 +1,4 @@
-"""テスト用モック命令部（設計書 4.5, 10.4）"""
+"""テスト用モック命令部"""
 
 from app_server.model.trading import OrderCommand
 from app_server.service.order.base import OrderSender

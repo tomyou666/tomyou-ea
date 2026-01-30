@@ -1,9 +1,8 @@
-"""売買・損益集計用 API（設計書 8.2）"""
-
-from fastapi import APIRouter, Depends
+"""売買・損益集計用 API"""
 
 import app_server.share.global_value as g
 from app_server.service.core_logic.base import CoreLogic
+from fastapi import APIRouter, Depends
 
 router = APIRouter(prefix="/trading", tags=["trading"])
 

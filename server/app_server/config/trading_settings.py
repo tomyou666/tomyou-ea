@@ -1,4 +1,4 @@
-"""売買・ZeroMQ 用設定読み込み（設計書 7.3）。setting.ini が無い場合は既定値を使用。"""
+"""売買・ZeroMQ 用設定読み込み。setting.ini が無い場合は既定値を使用。"""
 
 import configparser
 import os

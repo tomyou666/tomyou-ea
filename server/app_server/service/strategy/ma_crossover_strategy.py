@@ -1,4 +1,4 @@
-"""移動平均クロスオーバー戦略（設計書 4.3）
+"""移動平均クロスオーバー戦略
 
 短期MAが長期MAを上抜け → 買い、下抜け → 売り。それ以外はホールド。
 """
@@ -53,9 +53,7 @@ class MACrossoverStrategy(Strategy):
             return None
         return sum(list(self._mid_prices)[-self.long_period :]) / self.long_period
 
-    def next(
-        self, tick: TickDto, context: object | None = None
-    ) -> Signal | SignalResult:
+    def next(self, tick: TickDto, context: object | None = None) -> Signal | SignalResult:
         if tick.spread > self.max_spread:
             return SignalResult(
                 signal=Signal.HOLD,

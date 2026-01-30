@@ -1,7 +1,6 @@
-"""加工部テスト（設計書 10.1）"""
+"""加工部テスト"""
 
 import pytest
-
 from app_server.model.trading import TickDto
 from app_server.service.processor.tick_processor import TickProcessor
 

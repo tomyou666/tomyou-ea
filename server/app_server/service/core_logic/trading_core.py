@@ -1,4 +1,4 @@
-"""本番用コアロジック（設計書 4.4）：ZeroMQ 受信と連携、売買結果CSV・損益集計CSV"""
+"""本番用コアロジック：ZeroMQ 受信と連携、売買結果CSV・損益集計CSV"""
 
 import csv
 import json

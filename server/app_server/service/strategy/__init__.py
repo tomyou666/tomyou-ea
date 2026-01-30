@@ -1,4 +1,4 @@
-# 戦略部（設計書 4.3）
+# 戦略部
 
 from app_server.service.strategy.base import Strategy
 from app_server.service.strategy.ma_crossover_strategy import MACrossoverStrategy
