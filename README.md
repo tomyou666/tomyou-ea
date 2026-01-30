@@ -4,7 +4,7 @@ MT4（MetaTrader 4）と Python を ZeroMQ で接続し、ティック配信・�
 
 ## 概要
 
-- **MT4 クライアント（EA）**: `cliant/main.mq4` — ティックを CSV で送信し、注文コマンドを JSON で受信
+- **MT4 クライアント（EA）**: `client/main.mq4` — ティックを CSV で送信し、注文コマンドを JSON で受信
 - **Python サーバー**: FastAPI + ZeroMQ — ティックを受信して戦略・コアロジックで処理し、注文を JSON で MT4 に送信
 
 通信は **ZeroMQ（PUSH/PULL）** のみで、デフォルトでは **5555**（MT4→Python 受信）、**5556**（Python→MT4 送信）を使用します。
@@ -23,7 +23,7 @@ MT4（MetaTrader 4）と Python を ZeroMQ で接続し、ティック配信・�
 
 ```
 tomyou-ea/
-├── cliant/                    # MT4 EA（MQL4）
+├── client/                    # MT4 EA（MQL4）
 │   └── main.mq4
 ├── server/                    # Python サーバー
 │   ├── app_server/
@@ -75,7 +75,7 @@ uv run uvicorn app_server.main:app --host 0.0.0.0 --port 8000
 
 ### 2. MT4 EA
 
-1. `cliant/main.mq4` を MT4 の `Experts` に配置
+1. `client/main.mq4` を MT4 の `Experts` に配置
 2. 必要なライブラリ（mql-zmq, JAson, DLL）を導入
 3. チャートに EA をアタッチ
 4. 入力パラメータで `ServerAddress`（例: `tcp://localhost`）、`PushPort`（5555）、`PullPort`（5556）を Python サーバーと一致させる
