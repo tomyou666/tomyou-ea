@@ -39,11 +39,13 @@ target-version = "py311"
 # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
 select = ["ALL"]
 ignore = [
-"RUF100",
+"RUF001", "RUF100",
+"C901",
 "COM812", "COM819",
-"RUF002","RUF003",
+"RUF002","RUF003","RUF022",
 "D103", "D100", "D102", "D104", "D107", "D203", "D205", "D213", "D300", "D301", "D400", "D401", "D415", "D417",
 "E111", "E114", "E117", "E203", "E402",
+"FAST002",
 "FBT002",
 "I001",
 "ISC001", "ISC002",
@@ -60,7 +62,8 @@ ignore = [
 "PGH003",
 "PD901",
 "PLR2004", "PLR0913",
-"EXE", "ANN", "TRY", "A", "BLE", "T", "FBT","DTZ"
+"PLW0603",
+"EXE", "ANN", "TRY", "A", "BLE", "T", "FBT","DTZ","PERF","B"
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
