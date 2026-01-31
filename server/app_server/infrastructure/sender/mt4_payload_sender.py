@@ -1,4 +1,4 @@
-"""infrastructure 層: JSON ペイロードを ZMQ で MT4 に送信するのみ（send_payload）"""
+"""JSON ペイロードを ZMQ で MT4 に送信する"""
 
 import json
 
@@ -10,7 +10,7 @@ logger = get_logger()
 
 
 class Mt4PayloadSender(PayloadSenderBase):
-    """JSON ペイロードを MT4 に ZMQ で送信する。役割は send_payload のみ。"""
+    """JSON ペイロードを MT4 に ZMQ で送信する"""
 
     def __init__(self, socket: zmq.Socket) -> None:
         self._push_socket = socket

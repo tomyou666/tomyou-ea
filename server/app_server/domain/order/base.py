@@ -17,6 +17,7 @@ class OrderSender(metaclass=ABCMeta):
 
         Returns:
             送信成功なら True、失敗なら False
+
         """
         raise NotImplementedError
 

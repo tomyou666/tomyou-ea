@@ -1,4 +1,4 @@
-"""トレード処理の制御（application 層）の抽象基底クラス"""
+"""トレード処理の制御の抽象基底クラス"""
 
 from abc import ABCMeta, abstractmethod
 
@@ -11,7 +11,8 @@ class TradingServiceBase(metaclass=ABCMeta):
     @abstractmethod
     def on_tick(self, raw: str) -> Signal | SignalResult | None:
         """生ティック（CSV文字列）を受け、加工→戦略→命令まで処理する。
-        シグナルが BUY/SELL の場合はその Signal または SignalResult を返す。HOLD または処理しない場合は None。"""
+        シグナルが BUY/SELL の場合はその Signal または SignalResult を返す。HOLD または処理しない場合は None。
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -21,7 +22,9 @@ class TradingServiceBase(metaclass=ABCMeta):
 
     @abstractmethod
     def on_pending_opened(self, raw: str) -> None:
-        """ペンディング約定通知（指値・逆指値が約定してポジションオープンした際の JSON）を受け、ポジション管理・状態更新に利用する。"""
+        """ペンディング約定通知（指値・逆指値が約定してポジションオープンした際の JSON）を受け、
+        ポジション管理・状態更新に利用する。
+        """
         raise NotImplementedError
 
     @abstractmethod

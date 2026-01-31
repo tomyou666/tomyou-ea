@@ -13,7 +13,7 @@ class MockOrderSender(OrderSender):
         self.send_result: bool = True  # テストで成功/失敗を切り替え可能
 
     def _send_payload(self, payload: dict) -> bool:
-        """order 層内部用。送信ペイロードを記録する。"""
+        """送信ペイロードを記録する。"""
         self.send_payloads.append(payload)
         return self.send_result
 

@@ -21,7 +21,7 @@ _zmq_push_socket: zmq.Socket | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: ARG001
     """起動時に ZeroMQ を初期化し、受信タスクを開始する（presentation 層の controller 経由）。"""
-    global _zmq_context, _zmq_push_socket, g
+    global _zmq_context, _zmq_push_socket
     g.pending_response_queues = {}
     g.pending_response_lock = asyncio.Lock()
     recv_port = get_zmq_recv_port()

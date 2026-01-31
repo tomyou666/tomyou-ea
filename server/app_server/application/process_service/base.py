@@ -17,5 +17,6 @@ class Processor(metaclass=ABCMeta):
 
         Returns:
             TickDto または TickDto のリスト。パース失敗時は None。
+
         """
         raise NotImplementedError

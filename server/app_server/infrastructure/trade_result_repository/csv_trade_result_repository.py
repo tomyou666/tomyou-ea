@@ -1,4 +1,4 @@
-"""売買結果・損益集計の CSV 永続化実装（infrastructure 層）"""
+"""売買結果・損益集計の CSV 永続化実装"""
 
 import csv
 from datetime import datetime

@@ -4,6 +4,7 @@ import asyncio
 import json
 import uuid
 
+import app_server.share.global_value as g
 from app_server.config.trading_settings import get_response_timeout_sec, get_retry_count
 from app_server.domain.sender.base import OrderSender
 from app_server.infrastructure.sender.base import PayloadSenderBase
@@ -16,8 +17,6 @@ logger = get_logger()
 
 async def _wait_response(request_id: str) -> str | None:
     """pending_response_queues に登録された request_id の応答をタイムアウト付きで待つ。"""
-    import app_server.share.global_value as g
-
     if g.pending_response_queues is None:
         return None
     timeout = get_response_timeout_sec()
@@ -32,8 +31,6 @@ async def _wait_response(request_id: str) -> str | None:
 
 async def _register_request(request_id: str) -> asyncio.Queue:
     """request_id 用のキューを登録する。"""
-    import app_server.share.global_value as g
-
     if g.pending_response_queues is None:
         g.pending_response_queues = {}
     q: asyncio.Queue = asyncio.Queue()
@@ -47,8 +44,6 @@ async def _register_request(request_id: str) -> asyncio.Queue:
 
 async def _unregister_request(request_id: str) -> None:
     """request_id のキューを削除する。"""
-    import app_server.share.global_value as g
-
     if g.pending_response_queues is None:
         return
     if g.pending_response_lock is not None:

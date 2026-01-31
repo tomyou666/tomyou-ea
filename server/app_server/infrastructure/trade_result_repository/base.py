@@ -1,4 +1,4 @@
-"""売買結果・損益集計の永続化の抽象基底（infrastructure 層）"""
+"""売買結果・損益集計の永続化の抽象基底クラス"""
 
 from abc import ABCMeta, abstractmethod
 from pathlib import Path

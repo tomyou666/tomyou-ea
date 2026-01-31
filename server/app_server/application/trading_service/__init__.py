@@ -1,4 +1,4 @@
-# コアロジック部
+# トレード処理の制御
 
 from app_server.application.trading_service.base import TradingServiceBase
 from app_server.application.trading_service.trading_service import TradingService

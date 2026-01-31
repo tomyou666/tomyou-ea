@@ -4,7 +4,6 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from app_server.application.process_service.base import Processor
 from app_server.application.trading_service.base import TradingServiceBase
@@ -43,7 +42,7 @@ class TradingService(TradingServiceBase):
         """損益集計CSVの出力ディレクトリを返す（テスト・呼び出し元用）。"""
         return self.trade_result_repository.get_pnl_dir()
 
-    def on_tick(self, raw: str) -> Optional[Signal | SignalResult]:
+    def on_tick(self, raw: str) -> Signal | SignalResult | None:
         parsed = self.processor.parse(raw)
         if parsed is None:
             return None
@@ -143,4 +142,5 @@ class TradingService(TradingServiceBase):
 
     def output_pnl_summary(self, period_type: str = "daily") -> None:
         """損益集計を出力する（infrastructure の repository に委譲）。"""
+        self.trade_result_repository.output_pnl_summary(period_type=period_type)
         self.trade_result_repository.output_pnl_summary(period_type=period_type)

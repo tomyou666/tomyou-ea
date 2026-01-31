@@ -1,4 +1,4 @@
-"""presentation 層: ZeroMQ PULL でティック・注文結果等を受信し、application 層（TradingService）に渡す"""
+"""ZeroMQ PULL でティック・注文結果等を受信し、application 層に渡す"""
 
 import asyncio
 import json
@@ -41,7 +41,7 @@ async def run_zmq_receiver(recv_port: int) -> None:
                             if msg_type == "order_result":
                                 trading_service.on_order_result(raw)
                                 continue
-                            if msg_type == "price_info" or msg_type == "order_info_list":
+                            if msg_type in {"price_info", "order_info_list"}:
                                 continue
                             if msg_type == "pending_opened":
                                 trading_service.on_pending_opened(raw)
