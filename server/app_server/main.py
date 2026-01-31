@@ -4,7 +4,8 @@ from contextlib import asynccontextmanager
 
 import app_server.share.global_value as g
 import zmq
-import zmq.asyncio
+import zmq.asyncio  # asyncio と統合: PULL の recv を非同期化し、同一イベントループで Lock/Queue と共存
+
 from app_server.config.di import DI
 from app_server.config.trading_settings import get_zmq_recv_port, get_zmq_send_port
 from app_server.routers import trading_router
@@ -21,7 +22,7 @@ _zmq_push_socket: zmq.Socket | None = None
 
 
 async def _zmq_receiver(recv_port: int) -> None:
-    """ZeroMQ PULL でティック・注文結果を受信し、コアロジックに渡す"""
+    """ZeroMQ PULL でティック・注文結果・価格情報・注文情報・ペンディング約定通知を受信し、コアロジックに渡す"""
     ctx = zmq.asyncio.Context()
     socket = ctx.socket(zmq.PULL)
     socket.bind(f"tcp://*:{recv_port}")
@@ -36,9 +37,25 @@ async def _zmq_receiver(recv_port: int) -> None:
                 if raw.startswith("{"):
                     try:
                         data = json.loads(raw)
-                        if isinstance(data, dict) and data.get("type") == "order_result":
-                            core_logic.on_order_result(raw)
-                            continue
+                        if isinstance(data, dict):
+                            msg_type = data.get("type")
+                            request_id = data.get("request_id")
+                            # 応答待ちキューに登録されていればキューへ投入
+                            if request_id and g.pending_response_queues:
+                                queue = g.pending_response_queues.get(request_id)
+                                if queue is not None:
+                                    try:
+                                        queue.put_nowait(raw)
+                                    except Exception:
+                                        pass
+                            if msg_type == "order_result":
+                                core_logic.on_order_result(raw)
+                                continue
+                            if msg_type == "price_info" or msg_type == "order_info_list":
+                                continue
+                            if msg_type == "pending_opened":
+                                core_logic.on_pending_opened(raw)
+                                continue
                     except json.JSONDecodeError:
                         pass
                 core_logic.on_tick(raw)
@@ -54,6 +71,8 @@ async def _zmq_receiver(recv_port: int) -> None:
 async def lifespan(app: FastAPI):  # noqa: ARG001
     """起動時に ZeroMQ を初期化し、受信タスクを開始する"""
     global _zmq_context, _zmq_push_socket, g
+    g.pending_response_queues = {}
+    g.pending_response_lock = asyncio.Lock()
     recv_port = get_zmq_recv_port()
     send_port = get_zmq_send_port()
     _zmq_context = zmq.Context()

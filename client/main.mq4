@@ -2,10 +2,10 @@
 //|                                          main.mq4                |
 //|         MT4-Python 自動売買システム クライアント（設計書準拠）   |
 //|                                                                  |
-//|  docs/設計書.md                                                  |
+//|  docs/設計書.md, docs/インターフェース設計書.md                   |
 //| 通信: ZeroMQ のみ。ポート5555=PUSH(MT4→Python)、5556=PULL(Python→MT4) |
-//| メッセージ: ティック=CSV "SYMBOL,BID,ASK,SPREAD,TIME"             |
-//|            注文/決済=JSON                                        |
+//| メッセージ: ティック=CSV / 注文結果・価格情報・注文情報・ペンディング約定=JSON |
+//| コマンド: ORDER / CLOSE / PRICE_INFO / ORDER_INFO                |
 //| 必要なライブラリ:                                                |
 //|   - mql-zmq (https://github.com/dingmaotu/mql-zmq)               |
 //|   - JAson (https://github.com/vivazzi/JAson) JSONのシリアライズ  |
@@ -39,6 +39,10 @@ Socket pullSocket(context, ZMQ_PULL);
 bool isConnected = false;
 datetime lastSendTime = 0;
 datetime lastReconnectTry = 0;
+
+//--- ペンディング約定検知用（前回ティック時点のペンディング注文）
+int prevPendingTickets[];
+int prevPendingOrderTypes[];
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                    |
@@ -120,6 +124,89 @@ void OnTick()
     }
 
     ReceiveCommands();
+    CheckPendingOpened();
+}
+
+//+------------------------------------------------------------------+
+//| ペンディング約定検知（前回ティック時点でペンディングだった注文が今回ポジションになっていたら pending_opened を送信） |
+//+------------------------------------------------------------------+
+void CheckPendingOpened()
+{
+    int currentPendingTickets[];
+    int currentPendingOrderTypes[];
+    int currentPositionTickets[];
+    int nPending = 0, nPos = 0;
+
+    for(int i = OrdersTotal() - 1; i >= 0; i--)
+    {
+        if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
+        continue;
+        if(OrderMagicNumber() != MagicNumber)
+        continue;
+        int otype = OrderType();
+        if(otype == OP_BUYLIMIT || otype == OP_SELLLIMIT || otype == OP_BUYSTOP || otype == OP_SELLSTOP)
+        {
+            ArrayResize(currentPendingTickets, nPending + 1);
+            ArrayResize(currentPendingOrderTypes, nPending + 1);
+            currentPendingTickets[nPending] = OrderTicket();
+            currentPendingOrderTypes[nPending] = otype;
+            nPending++;
+        }
+        else
+        if(otype == OP_BUY || otype == OP_SELL)
+        {
+            ArrayResize(currentPositionTickets, nPos + 1);
+            currentPositionTickets[nPos] = OrderTicket();
+            nPos++;
+        }
+    }
+
+    for(int p = 0; p < nPos; p++)
+    {
+        int ticket = currentPositionTickets[p];
+        int prevIdx = - 1;
+        for(int j = 0; j < ArraySize(prevPendingTickets); j++)
+        {
+            if(prevPendingTickets[j] == ticket)
+            {
+                prevIdx = j;
+                break;
+            }
+        }
+        if(prevIdx >= 0)
+        {
+            if(OrderSelect(ticket, SELECT_BY_TICKET))
+            SendPendingOpened(ticket, OrderSymbol(), OrderTypeToString(prevPendingOrderTypes[prevIdx]), OrderLots(), OrderOpenPrice(), OrderOpenTime());
+        }
+    }
+
+    ArrayResize(prevPendingTickets, nPending);
+    ArrayResize(prevPendingOrderTypes, nPending);
+    for(int k = 0; k < nPending; k++)
+    {
+        prevPendingTickets[k] = currentPendingTickets[k];
+        prevPendingOrderTypes[k] = currentPendingOrderTypes[k];
+    }
+}
+
+//+------------------------------------------------------------------+
+//| ペンディング約定通知送信（ type=pending_opened）                   |
+//+------------------------------------------------------------------+
+void SendPendingOpened(int ticket, string symbol, string orderType, double lots, double openPrice, datetime openTime)
+{
+    CJAVal msg;
+    msg["type"] = "pending_opened";
+    msg["ticket"] = ticket;
+    msg["symbol"] = symbol;
+    msg["order_type"] = orderType;
+    msg["lots"] = lots;
+    msg["open_price"] = openPrice;
+    msg["open_time"] = (openTime > 0) ? TimeToString(openTime, TIME_DATE|TIME_SECONDS) : "";
+    string msgStr = msg.Serialize();
+    ZmqMsg message(msgStr);
+    if(!pushSocket.send(message, true) && EnableReconnect)
+    isConnected = false;
+    Print("ペンディング約定通知: チケット#", ticket, " ", symbol, " ", orderType);
 }
 
 //+------------------------------------------------------------------+
@@ -157,7 +244,7 @@ void ReceiveCommands()
 }
 
 //+------------------------------------------------------------------+
-//| コマンド振り分け（action: ORDER / CLOSE / SUBSCRIBE）               |
+//| コマンド振り分け（action: ORDER / CLOSE / PRICE_INFO / ORDER_INFO / SUBSCRIBE） |
 //+------------------------------------------------------------------+
 void ProcessCommand(string jsonCommand)
 {
@@ -175,6 +262,12 @@ void ProcessCommand(string jsonCommand)
     if(action == "CLOSE")
     ProcessCloseCommand(cmd);
     else
+    if(action == "PRICE_INFO")
+    ProcessPriceInfoCommand(cmd);
+    else
+    if(action == "ORDER_INFO")
+    ProcessOrderInfoCommand(cmd);
+    else
     if(action == "SUBSCRIBE")
     Print("購読リクエスト受信（必要に応じて実装）");
     else
@@ -186,6 +279,7 @@ void ProcessCommand(string jsonCommand)
 //+------------------------------------------------------------------+
 void ProcessOrderCommand(CJAVal &data)
 {
+    string requestId = data["request_id"].ToStr();
     string symbol = data["symbol"].ToStr();
     string orderType = data["type"].ToStr();
     double lots = data["lots"].ToDbl();
@@ -222,7 +316,7 @@ void ProcessOrderCommand(CJAVal &data)
         if(priceFromCmd <= 0)
         {
             Print("指値買い: price が未指定または 0");
-            SendOrderResult( - 1, "FAILED:129"); // Invalid price
+            SendOrderResult(requestId, - 1, "FAILED:129"); // Invalid price
             return;
         }
         price = priceFromCmd;
@@ -235,7 +329,7 @@ void ProcessOrderCommand(CJAVal &data)
         if(priceFromCmd <= 0)
         {
             Print("指値売り: price が未指定または 0");
-            SendOrderResult( - 1, "FAILED:129");
+            SendOrderResult(requestId, - 1, "FAILED:129");
             return;
         }
         price = priceFromCmd;
@@ -248,7 +342,7 @@ void ProcessOrderCommand(CJAVal &data)
         if(priceFromCmd <= 0)
         {
             Print("逆指値買い: price が未指定または 0");
-            SendOrderResult( - 1, "FAILED:129");
+            SendOrderResult(requestId, - 1, "FAILED:129");
             return;
         }
         price = priceFromCmd;
@@ -261,7 +355,7 @@ void ProcessOrderCommand(CJAVal &data)
         if(priceFromCmd <= 0)
         {
             Print("逆指値売り: price が未指定または 0");
-            SendOrderResult( - 1, "FAILED:129");
+            SendOrderResult(requestId, - 1, "FAILED:129");
             return;
         }
         price = priceFromCmd;
@@ -270,7 +364,7 @@ void ProcessOrderCommand(CJAVal &data)
     if(cmd < 0)
     {
         Print("不明な注文種別: ", orderType);
-        SendOrderResult( - 1, "FAILED:INVALID_ORDER_TYPE");
+        SendOrderResult(requestId, - 1, "FAILED:INVALID_ORDER_TYPE");
         return;
     }
 
@@ -309,7 +403,7 @@ void ProcessOrderCommand(CJAVal &data)
         {
             Print("注文失敗: エラー ", err, " - ", ErrorDescription(err),
             (attempt > 0 ? " (リトライ " + IntegerToString(attempt) + "回後)" : ""));
-            SendOrderResult( - 1, "FAILED:" + IntegerToString(err));
+            SendOrderResult(requestId, - 1, "FAILED:" + IntegerToString(err));
             return;
         }
 
@@ -321,7 +415,7 @@ void ProcessOrderCommand(CJAVal &data)
     {
         Print("注文成功: チケット#", ticket, " ", symbol, " ", orderType, " ", lots, "ロット",
         (attempt > 0 ? " (リトライ " + IntegerToString(attempt) + "回後)" : ""));
-        SendOrderResult(ticket, "SUCCESS");
+        SendOrderResult(requestId, ticket, "SUCCESS");
     }
 }
 
@@ -330,18 +424,19 @@ void ProcessOrderCommand(CJAVal &data)
 //+------------------------------------------------------------------+
 void ProcessCloseCommand(CJAVal &data)
 {
+    string requestId = data["request_id"].ToStr();
     int ticket = (int)data["ticket"].ToInt();
 
     if(ticket <= 0)
     {
-        SendOrderResult(0, "INVALID_TICKET");
+        SendOrderResult(requestId, 0, "INVALID_TICKET");
         return;
     }
 
     if(!OrderSelect(ticket, SELECT_BY_TICKET))
     {
         Print("決済失敗: チケット#", ticket, " が見つかりません");
-        SendOrderResult(ticket, "TICKET_NOT_FOUND");
+        SendOrderResult(requestId, ticket, "TICKET_NOT_FOUND");
         return;
     }
 
@@ -364,22 +459,130 @@ void ProcessCloseCommand(CJAVal &data)
     if(closed)
     {
         Print("決済成功: チケット#", ticket);
-        SendOrderResult(ticket, "CLOSED");
+        SendOrderResult(requestId, ticket, "CLOSED");
     }
     else
     {
         Print("決済失敗: チケット#", ticket);
-        SendOrderResult(ticket, "CLOSE_FAILED");
+        SendOrderResult(requestId, ticket, "CLOSE_FAILED");
     }
 }
 
 //+------------------------------------------------------------------+
-//| 注文結果送信（ type=order_result, ticket, status）      |
+//| 価格情報取得（ action=PRICE_INFO, request_id, symbol）            |
 //+------------------------------------------------------------------+
-void SendOrderResult(int ticket, string status)
+void ProcessPriceInfoCommand(CJAVal &data)
+{
+    string requestId = data["request_id"].ToStr();
+    string symbol = data["symbol"].ToStr();
+    if(symbol == "")
+    symbol = Symbol();
+
+    double point = MarketInfo(symbol, MODE_POINT);
+    int digits = (int)MarketInfo(symbol, MODE_DIGITS);
+    double pips = (digits == 3 || digits == 5) ? (point * 10.0) : point;
+
+    CJAVal result;
+    result["type"] = "price_info";
+    result["request_id"] = requestId;
+    result["symbol"] = symbol;
+    result["point"] = point;
+    result["digits"] = digits;
+    result["pips"] = pips;
+    string resultStr = result.Serialize();
+    ZmqMsg message(resultStr);
+    if(!pushSocket.send(message, true) && EnableReconnect)
+    isConnected = false;
+}
+
+//+------------------------------------------------------------------+
+//| 注文情報取得（ action=ORDER_INFO, request_id, ticket省略可）      |
+//+------------------------------------------------------------------+
+void ProcessOrderInfoCommand(CJAVal &data)
+{
+    string requestId = data["request_id"].ToStr();
+    int ticketReq = (int)data["ticket"].ToInt(); // 0 or 未指定時は全注文
+
+    CJAVal result;
+    result["type"] = "order_info_list";
+    result["request_id"] = requestId;
+    CJAVal ordersArray;
+    int count = 0;
+
+    if(ticketReq > 0)
+    {
+        if(OrderSelect(ticketReq, SELECT_BY_TICKET) && OrderMagicNumber() == MagicNumber)
+        {
+            ordersArray.Add(BuildOrderInfoObj());
+            count = 1;
+        }
+    }
+    else
+    {
+        for(int i = OrdersTotal() - 1; i >= 0; i--)
+        {
+            if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
+            continue;
+            if(OrderMagicNumber() != MagicNumber)
+            continue;
+            ordersArray.Add(BuildOrderInfoObj());
+            count++;
+        }
+    }
+
+    result["count"] = count;
+    result["orders"] = ordersArray;
+    string resultStr = result.Serialize();
+    ZmqMsg message(resultStr);
+    if(!pushSocket.send(message, true) && EnableReconnect)
+    isConnected = false;
+}
+
+//+------------------------------------------------------------------+
+//| 1 注文分の JSON オブジェクトを構築（ticket, status, symbol, order_type, lots, open_price, sl, tp, open_time, close_time, profit） |
+//+------------------------------------------------------------------+
+CJAVal BuildOrderInfoObj()
+{
+    CJAVal o;
+    o["ticket"] = OrderTicket();
+    o["status"] = "OK";
+    o["symbol"] = OrderSymbol();
+    o["order_type"] = OrderTypeToString(OrderType());
+    o["lots"] = OrderLots();
+    o["open_price"] = OrderOpenPrice();
+    o["sl"] = OrderStopLoss();
+    o["tp"] = OrderTakeProfit();
+    o["open_time"] = (OrderOpenTime() > 0) ? TimeToString(OrderOpenTime(), TIME_DATE|TIME_SECONDS) : "";
+    o["close_time"] = (OrderCloseTime() > 0) ? TimeToString(OrderCloseTime(), TIME_DATE|TIME_SECONDS) : "";
+    o["profit"] = OrderProfit() + OrderSwap() + OrderCommission();
+    return o;
+}
+
+//+------------------------------------------------------------------+
+//| OrderType() を設計書の文字列に変換                                 |
+//+------------------------------------------------------------------+
+string OrderTypeToString(int otype)
+{
+    switch(otype)
+    {
+        case OP_BUY: return "BUY";
+        case OP_SELL: return "SELL";
+        case OP_BUYLIMIT: return "BUY_LIMIT";
+        case OP_SELLLIMIT: return "SELL_LIMIT";
+        case OP_BUYSTOP: return "BUY_STOP";
+        case OP_SELLSTOP: return "SELL_STOP";
+        default: return "UNKNOWN";
+    }
+}
+
+//+------------------------------------------------------------------+
+//| 注文結果送信（ type=order_result, request_id, ticket, status）    |
+//+------------------------------------------------------------------+
+void SendOrderResult(string requestId, int ticket, string status)
 {
     CJAVal result;
     result["type"] = "order_result";
+    result["request_id"] = requestId;
     result["ticket"] = ticket;
     result["status"] = status;
     string resultStr = result.Serialize();

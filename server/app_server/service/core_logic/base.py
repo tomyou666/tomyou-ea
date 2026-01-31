@@ -16,7 +16,12 @@ class CoreLogic(metaclass=ABCMeta):
 
     @abstractmethod
     def on_order_result(self, raw: str) -> None:
-        """MT4 から返ってきた注文結果（JSON文字列）を受け、売買結果CSVに記録する。"""
+        """MT4 から返ってきた注文結果（JSON文字列）を受け、request_id を検証し売買結果CSVに記録する。"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def on_pending_opened(self, raw: str) -> None:
+        """ペンディング約定通知（指値・逆指値が約定してポジションオープンした際の JSON）を受け、ポジション管理・状態更新に利用する。"""
         raise NotImplementedError
 
     @abstractmethod

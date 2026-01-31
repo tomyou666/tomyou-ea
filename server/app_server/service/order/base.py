@@ -2,15 +2,27 @@
 
 from abc import ABCMeta, abstractmethod
 
-from app_server.model.trading import OrderCommand, Signal, SignalResult
+from app_server.model.trading import (
+    OrderCommand,
+    OrderInfoList,
+    PriceInfo,
+    Signal,
+    SignalResult,
+)
+
+
+class Mt4RequestTimeoutError(Exception):
+    """応答がタイムアウトまたはリトライ上限に達した場合のエラー（order 層で送出）"""
+
+    pass
 
 
 class OrderSender(metaclass=ABCMeta):
-    """シグナルを MT4 が理解する注文コマンドに変換し送信する命令部の基底クラス"""
+    """MT4 への各種命令（ORDER / CLOSE / PRICE_INFO / ORDER_INFO）を送信する命令部の基底クラス"""
 
     @abstractmethod
     def send_order(self, order_command: OrderCommand) -> bool:
-        """注文コマンドを MT4 に送信する。
+        """注文コマンド（ORDER / CLOSE）を MT4 に送信する。
 
         Args:
             order_command: 送信する注文コマンド
@@ -18,6 +30,16 @@ class OrderSender(metaclass=ABCMeta):
         Returns:
             送信成功なら True、失敗なら False
         """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_price_info(self, symbol: str) -> PriceInfo:
+        """PRICE_INFO を送信し、request_id で応答を検証して PriceInfo を返す。"""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_order_info(self, ticket: int | None = None) -> OrderInfoList:
+        """ORDER_INFO を送信し、request_id で応答を検証して OrderInfoList を返す。ticket 省略時は全注文。"""
         raise NotImplementedError
 
     def build_order_command(

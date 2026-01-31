@@ -123,8 +123,10 @@ class TradingCore(CoreLogic):
             data = json.loads(raw)
             if data.get("type") != "order_result":
                 return
+            request_id = data.get("request_id", "")
             res = OrderResult(
                 type="order_result",
+                request_id=request_id,
                 ticket=data.get("ticket", 0),
                 status=data.get("status", ""),
             )
@@ -140,9 +142,51 @@ class TradingCore(CoreLogic):
                 memo="order_result",
             )
             self.append_trade_result(row)
-            logger.info("注文結果受信: ticket=%s status=%s", res.ticket, res.status)
+            logger.info(
+                "注文結果受信: request_id=%s ticket=%s status=%s",
+                res.request_id,
+                res.ticket,
+                res.status,
+            )
         except (json.JSONDecodeError, KeyError) as e:
             logger.warning("注文結果パースエラー: %s -> %s", raw[:200], e)
+
+    def on_pending_opened(self, raw: str) -> None:
+        """ペンディング約定通知を受信し、ログ出力・ポジション管理に利用する。"""
+        try:
+            data = json.loads(raw)
+            if data.get("type") != "pending_opened":
+                return
+            ticket = data.get("ticket", 0)
+            symbol = data.get("symbol", "")
+            order_type = data.get("order_type", "")
+            lots = data.get("lots", 0.0)
+            open_price = data.get("open_price", 0.0)
+            open_time = data.get("open_time", "")
+            logger.info(
+                "ペンディング約定通知: ticket=%s symbol=%s order_type=%s lots=%s open_price=%s open_time=%s",
+                ticket,
+                symbol,
+                order_type,
+                lots,
+                open_price,
+                open_time,
+            )
+            # 必要に応じて売買結果CSVへ追記や戦略の状態更新を行う
+            row = TradeResultRow(
+                executed_at=open_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                symbol=symbol,
+                side="BUY" if "BUY" in order_type else "SELL",
+                lots=float(lots),
+                price=float(open_price),
+                ticket=ticket,
+                status="pending_opened",
+                pnl=0.0,
+                memo="pending_opened",
+            )
+            self.append_trade_result(row)
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.warning("ペンディング約定通知パースエラー: %s -> %s", raw[:200], e)
 
     def append_trade_result(self, row: TradeResultRow) -> None:
         path = self._trade_result_path()
