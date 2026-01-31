@@ -1,6 +1,6 @@
 # model.trading: 売買用データモデル
 
-from app_server.model.trading.dto import (
+from app_server.models.trading.dto import (
     OrderCommand,
     OrderInfo,
     OrderInfoList,

@@ -1,1 +1,1 @@
-# tests.domain.core_logic
+# tests.application.trading_service

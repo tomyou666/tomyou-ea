@@ -3,7 +3,7 @@
 from abc import ABCMeta, abstractmethod
 from typing import Any
 
-from app_server.model.trading import Signal, SignalResult, TickDto
+from app_server.models.trading import Signal, SignalResult, TickDto
 
 
 class Strategy(metaclass=ABCMeta):

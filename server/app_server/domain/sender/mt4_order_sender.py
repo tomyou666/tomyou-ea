@@ -4,10 +4,9 @@ import asyncio
 import json
 import uuid
 
-import app_server.share.global_value as g
-import zmq
 from app_server.config.trading_settings import get_response_timeout_sec, get_retry_count
-from app_server.domain.order.base import OrderSender
+from app_server.domain.sender.base import OrderSender
+from app_server.infrastructure.sender.base import PayloadSenderBase
 from app_server.models.trading import OrderCommand, OrderInfo, OrderInfoList, PriceInfo
 from app_server.share.logger_util import get_logger
 from app_server.share.my_exception import Mt4RequestTimeoutError
@@ -17,6 +16,8 @@ logger = get_logger()
 
 async def _wait_response(request_id: str) -> str | None:
     """pending_response_queues に登録された request_id の応答をタイムアウト付きで待つ。"""
+    import app_server.share.global_value as g
+
     if g.pending_response_queues is None:
         return None
     timeout = get_response_timeout_sec()
@@ -31,6 +32,8 @@ async def _wait_response(request_id: str) -> str | None:
 
 async def _register_request(request_id: str) -> asyncio.Queue:
     """request_id 用のキューを登録する。"""
+    import app_server.share.global_value as g
+
     if g.pending_response_queues is None:
         g.pending_response_queues = {}
     q: asyncio.Queue = asyncio.Queue()
@@ -44,6 +47,8 @@ async def _register_request(request_id: str) -> asyncio.Queue:
 
 async def _unregister_request(request_id: str) -> None:
     """request_id のキューを削除する。"""
+    import app_server.share.global_value as g
+
     if g.pending_response_queues is None:
         return
     if g.pending_response_lock is not None:
@@ -54,22 +59,10 @@ async def _unregister_request(request_id: str) -> None:
 
 
 class Mt4OrderSender(OrderSender):
-    """PUSH ソケットで JSON を MT4 に送信する実機用命令部"""
+    """PUSH ソケットで JSON を MT4 に送信する実機用命令部。実際の送信は infrastructure の payload sender に委譲。"""
 
-    def __init__(self, socket: zmq.Socket) -> None:
-        """PUSH ソケットを受け取って初期化する。"""
-        self._push_socket = socket
-
-    def _send_payload(self, payload: dict) -> bool:
-        """JSON ペイロードを MT4 に送信する（order 層内部専用）。"""
-        cmd_str = json.dumps(payload, ensure_ascii=False)
-        try:
-            self._push_socket.send_string(cmd_str, zmq.NOBLOCK)
-            logger.info("MT4へ送信: %s", cmd_str)
-            return True
-        except zmq.ZMQError as e:
-            logger.error("送信エラー: %s", e)
-            return False
+    def __init__(self, payload_sender: PayloadSenderBase) -> None:
+        self._payload_sender = payload_sender
 
     def send_order(self, order_command: OrderCommand) -> bool:
         payload = order_command.model_dump(mode="json", exclude_none=True)
@@ -77,7 +70,7 @@ class Mt4OrderSender(OrderSender):
             payload["request_id"] = f"req-{uuid.uuid4().hex[:12]}"
         if payload.get("action") == "ORDER" and payload.get("price") == 0:
             payload["price"] = 0
-        return self._send_payload(payload)
+        return self._payload_sender.send_payload(payload)
 
     async def get_price_info(self, symbol: str) -> PriceInfo:
         """PRICE_INFO を送信し、request_id で応答を検証して PriceInfo を返す。"""
@@ -93,7 +86,7 @@ class Mt4OrderSender(OrderSender):
                     "request_id": request_id,
                     "symbol": symbol,
                 }
-                if not self._send_payload(payload):
+                if not self._payload_sender.send_payload(payload):
                     last_error = RuntimeError("PRICE_INFO 送信失敗")
                     await _unregister_request(request_id)
                     continue
@@ -140,7 +133,7 @@ class Mt4OrderSender(OrderSender):
                 }
                 if ticket is not None:
                     payload["ticket"] = ticket
-                if not self._send_payload(payload):
+                if not self._payload_sender.send_payload(payload):
                     last_error = RuntimeError("ORDER_INFO 送信失敗")
                     await _unregister_request(request_id)
                     continue
@@ -185,5 +178,4 @@ class Mt4OrderSender(OrderSender):
                 last_error = e
                 await _unregister_request(request_id)
 
-        raise last_error or Mt4RequestTimeoutError("ORDER_INFO がリトライ上限に達しました")
         raise last_error or Mt4RequestTimeoutError("ORDER_INFO がリトライ上限に達しました")

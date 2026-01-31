@@ -46,10 +46,7 @@ def get_logger() -> logging.Logger:
         logger (logging.Logger): logging.Loggerのインスタンス
 
     """
-    log_format = (
-        "[%(asctime)s] %(levelname)s\t%(real_filename)s"
-        " - %(real_funcName)s:%(real_lineno)s -> %(message)s"
-    )
+    log_format = "[%(asctime)s] %(levelname)s\t%(real_filename)s - %(real_funcName)s:%(real_lineno)s -> %(message)s"
     level = None
     level = logging.DEBUG if is_debug() else logging.INFO
     if not Path(const.LOG_DIR).exists():

@@ -1,11 +1,11 @@
-"""コアロジック部の抽象基底クラス"""
+"""トレード処理の制御（application 層）の抽象基底クラス"""
 
 from abc import ABCMeta, abstractmethod
 
-from app_server.model.trading import Signal, SignalResult, TradeResultRow
+from app_server.models.trading import Signal, SignalResult, TradeResultRow
 
 
-class CoreLogic(metaclass=ABCMeta):
+class TradingServiceBase(metaclass=ABCMeta):
     """受信→加工→戦略→命令のフローと、CSV記録・集計のインターフェースを定義する基底クラス"""
 
     @abstractmethod

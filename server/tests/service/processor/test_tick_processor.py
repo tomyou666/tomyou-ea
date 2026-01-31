@@ -1,8 +1,8 @@
 """加工部テスト"""
 
 import pytest
-from app_server.domain.processor.tick_processor import TickProcessor
-from app_server.model.trading import TickDto
+from app_server.application.process_service.tick_processor import TickProcessor
+from app_server.models.trading import TickDto
 
 
 def test_tick_processor_parse_valid_csv() -> None:

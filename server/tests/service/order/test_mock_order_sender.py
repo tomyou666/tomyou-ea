@@ -1,12 +1,12 @@
 """命令部モックテスト"""
 
 import pytest
-from app_server.domain.order.mock_order_sender import MockOrderSender
-from app_server.model.trading import OrderCommand
+from app_server.domain.sender.mock_order_sender import MockOrderSender
+from app_server.models.trading import OrderCommand
 
 
 def test_mock_order_sender_records_commands() -> None:
-    """送信した OrderCommand が sent_commands に記録される"""
+    """送信した OrderCommand が send_commands に記録される"""
     sender = MockOrderSender()
     cmd = OrderCommand(
         action="ORDER",
@@ -18,9 +18,9 @@ def test_mock_order_sender_records_commands() -> None:
         tp=0.0,
     )
     assert sender.send_order(cmd) is True
-    assert len(sender.sent_commands) == 1
-    assert sender.sent_commands[0].symbol == "USDJPY"
-    assert sender.sent_commands[0].type == "BUY"
+    assert len(sender.send_commands) == 1
+    assert sender.send_commands[0].symbol == "USDJPY"
+    assert sender.send_commands[0].type == "BUY"
 
 
 def test_mock_order_sender_clear() -> None:
@@ -28,5 +28,4 @@ def test_mock_order_sender_clear() -> None:
     sender = MockOrderSender()
     sender.send_order(OrderCommand(action="ORDER", symbol="USDJPY", type="BUY", lots=0.01))
     sender.clear()
-    assert len(sender.sent_commands) == 0
-    assert len(sender.sent_commands) == 0
+    assert len(sender.send_commands) == 0

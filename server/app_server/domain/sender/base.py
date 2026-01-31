@@ -1,4 +1,4 @@
-"""命令部の抽象基底クラス"""
+"""命令部の抽象基底クラス（注文・PRICE_INFO・ORDER_INFO 等の送信）"""
 
 from abc import ABCMeta, abstractmethod
 
@@ -17,6 +17,7 @@ class OrderSender(metaclass=ABCMeta):
 
         Returns:
             送信成功なら True、失敗なら False
+
         """
         raise NotImplementedError
 

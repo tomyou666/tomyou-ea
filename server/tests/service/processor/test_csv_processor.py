@@ -3,8 +3,8 @@
 from pathlib import Path
 
 import pytest
-from app_server.domain.processor.csv_processor import CsvBatchProcessor
-from app_server.model.trading import TickDto
+from app_server.application.process_service.csv_processor import CsvBatchProcessor
+from app_server.models.trading import TickDto
 
 
 def test_csv_batch_processor_parse_single_line() -> None:
@@ -77,5 +77,7 @@ def test_csv_batch_processor_iter_from_file_not_exists() -> None:
     """存在しないファイルの場合は空で終了"""
     proc = CsvBatchProcessor()
     ticks = list(proc._iter_from_file("/nonexistent/ticks.csv"))
+    assert len(ticks) == 0
+    assert len(ticks) == 0
     assert len(ticks) == 0
     assert len(ticks) == 0

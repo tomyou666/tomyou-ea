@@ -1,7 +1,7 @@
 import os
 import subprocess
 
-from app_server.model.trading import Signal, SignalResult, TickDto, TradeResultRow
+from app_server.models.trading import Signal, SignalResult, TickDto, TradeResultRow
 from app_server.share import const
 from app_server.share.logger_util import get_logger
 
@@ -60,9 +60,7 @@ def signal_to_trade_result_row(
     lots = result.lots if isinstance(result, SignalResult) else 0.01
     price = tick.ask if side == "BUY" else tick.bid
     if isinstance(tick.time, str):
-        executed_at = tick.time.replace(".", "-", 2)[
-            :19
-        ]  # "2025.01.29 12:00:00" -> "2025-01-29 12:00:00"
+        executed_at = tick.time.replace(".", "-", 2)[:19]  # "2025.01.29 12:00:00" -> "2025-01-29 12:00:00"
     else:
         executed_at = tick.time.strftime("%Y-%m-%d %H:%M:%S")
     return TradeResultRow(

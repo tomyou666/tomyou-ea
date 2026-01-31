@@ -1,16 +1,16 @@
 """売買・損益集計用 API"""
 
 import app_server.share.global_value as g
-from app_server.domain.core_logic.base import CoreLogic
-from app_server.domain.order.base import OrderSender
+from app_server.application.trading_service.base import TradingServiceBase
+from app_server.domain.sender.base import OrderSender
 from app_server.share.my_exception import Mt4RequestTimeoutError
 from fastapi import APIRouter, Depends, HTTPException
 
 router = APIRouter(prefix="/trading", tags=["trading"])
 
 
-def get_core_logic() -> CoreLogic:
-    return g.injector.resolve(CoreLogic)
+def get_trading_service() -> TradingServiceBase:
+    return g.injector.resolve(TradingServiceBase)
 
 
 def get_order_sender() -> OrderSender:
@@ -20,10 +20,10 @@ def get_order_sender() -> OrderSender:
 @router.post("/pnl-summary")
 async def output_pnl_summary(
     period_type: str = "daily",
-    core_logic: CoreLogic = Depends(get_core_logic),
+    trading_service: TradingServiceBase = Depends(get_trading_service),
 ):
     """損益集計を実行し、集計結果CSVを出力する。"""
-    core_logic.output_pnl_summary(period_type=period_type)
+    trading_service.output_pnl_summary(period_type=period_type)
     return {"status": "ok", "period_type": period_type}
 
 

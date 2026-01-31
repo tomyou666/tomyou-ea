@@ -6,7 +6,7 @@
 from collections import deque
 
 from app_server.domain.strategy.base import Strategy
-from app_server.model.trading import Signal, SignalResult, TickDto
+from app_server.models.trading import Signal, SignalResult, TickDto
 
 
 class MACrossoverStrategy(Strategy):

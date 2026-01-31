@@ -1,6 +1,6 @@
 """テスト用モック命令部"""
 
-from app_server.domain.order.base import OrderSender
+from app_server.domain.sender.base import OrderSender
 from app_server.models.trading import OrderCommand, OrderInfoList, PriceInfo
 
 
@@ -9,11 +9,11 @@ class MockOrderSender(OrderSender):
 
     def __init__(self) -> None:
         self.send_commands: list[OrderCommand] = []
-        self.send_payloads: list[dict] = []  # _send_payload で送ったペイロード（order 層内部用）
-        self.send_result: bool = True  # テストで成功/失敗を切り替え可能
+        self.send_payloads: list[dict] = []
+        self.send_result: bool = True
 
     def _send_payload(self, payload: dict) -> bool:
-        """order 層内部用。送信ペイロードを記録する。"""
+        """送信ペイロードを記録する。"""
         self.send_payloads.append(payload)
         return self.send_result
 

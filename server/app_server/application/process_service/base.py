@@ -2,7 +2,7 @@
 
 from abc import ABCMeta, abstractmethod
 
-from app_server.model.trading import TickDto
+from app_server.models.trading import TickDto
 
 
 class Processor(metaclass=ABCMeta):

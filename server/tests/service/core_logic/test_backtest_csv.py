@@ -6,12 +6,15 @@ from pathlib import Path
 import pandas as pd
 import pytest
 import yfinance as yf
-from app_server.domain.core_logic.trading_core import TradingCore
-from app_server.domain.order.mock_order_sender import MockOrderSender
-from app_server.domain.processor.csv_processor import CsvBatchProcessor
+from app_server.application.process_service.csv_processor import CsvBatchProcessor
+from app_server.application.trading_service.trading_service import TradingService
+from app_server.domain.sender.mock_order_sender import MockOrderSender
 from app_server.domain.strategy.base import Strategy
+from app_server.infrastructure.trade_result_repository.csv_trade_result_repository import (
+    CsvTradeResultRepository,
+)
 from app_server.domain.strategy.simple_strategy import SimpleStrategy
-from app_server.model.trading import Signal, SignalResult, TickDto
+from app_server.models.trading import Signal, SignalResult, TickDto
 from app_server.share.common_util import signal_to_trade_result_row
 from backtesting import Backtest
 from backtesting import Strategy as BacktestStrategy
@@ -24,16 +27,16 @@ class BacktestStrategyWrapper(BacktestStrategy):
     backtestingライブラリで使用できるようにするラッパー。
     """
 
-    def __init__(self, strategy: Strategy, trading_core: TradingCore, *args, **kwargs):
-        """既存のStrategyとTradingCoreを受け取る。
+    def __init__(self, strategy: Strategy, trading_service: TradingService, *args, **kwargs):
+        """既存のStrategyとTradingServiceを受け取る。
 
         Args:
             strategy: 既存のStrategyインスタンス
-            trading_core: TradingCoreインスタンス（append_trade_result用）
+            trading_service: TradingServiceインスタンス（append_trade_result用）
         """
         super().__init__(*args, **kwargs)
         self._strategy = strategy
-        self._trading_core = trading_core
+        self._trading_service = trading_service
         self._ticket_counter = 1
 
     def init(self):
@@ -74,7 +77,7 @@ class BacktestStrategyWrapper(BacktestStrategy):
                     pnl=0.0,  # バックテスト終了後に計算
                     memo="backtest",
                 )
-                self._trading_core.append_trade_result(row)
+                self._trading_service.append_trade_result(row)
                 self._ticket_counter += 1
             elif signal == Signal.SELL:
                 # backtestingライブラリのsell()メソッドを呼び出し
@@ -88,7 +91,7 @@ class BacktestStrategyWrapper(BacktestStrategy):
                     pnl=0.0,  # バックテスト終了後に計算
                     memo="backtest",
                 )
-                self._trading_core.append_trade_result(row)
+                self._trading_service.append_trade_result(row)
                 self._ticket_counter += 1
 
 
@@ -160,15 +163,15 @@ def test_backtest_with_backtesting_library(tmp_path: Path, monkeypatch: pytest.M
 
     # パスのモック設定
     # monkeypatch.setattr(
-    #     "app_server.domain.core_logic.trading_core.get_trade_result_dir",
+    #     "app_server.application.trading_service.trading_core.get_trade_result_dir",
     #     lambda: str(tmp_path / "trade_results"),
     # )
     # monkeypatch.setattr(
-    #     "app_server.domain.core_logic.trading_core.get_pnl_summary_dir",
+    #     "app_server.application.trading_service.trading_core.get_pnl_summary_dir",
     #     lambda: str(tmp_path / "pnl_summary"),
     # )
     monkeypatch.setattr(
-        "app_server.domain.core_logic.trading_core.get_trade_result_file_per_day",
+        "app_server.config.trading_settings.get_trade_result_file_per_day",
         lambda: False,
     )
 
@@ -177,11 +180,17 @@ def test_backtest_with_backtesting_library(tmp_path: Path, monkeypatch: pytest.M
     if data.empty:
         pytest.skip("yfinance でデータを取得できませんでした（ネットワークまたは銘柄を確認してください）")
 
-    # TradingCoreとStrategyを準備
+    # TradingServiceとStrategyを準備
     processor = CsvBatchProcessor()
     strategy = TestStrategyFirstTickBuy()
     order_sender = MockOrderSender()
-    core = TradingCore(processor=processor, strategy=strategy, order_sender=order_sender)
+    trade_result_repository = CsvTradeResultRepository()
+    core = TradingService(
+        processor=processor,
+        strategy=strategy,
+        order_sender=order_sender,
+        trade_result_repository=trade_result_repository,
+    )
 
     # backtestingライブラリ用のStrategyラッパーを作成
     class WrappedStrategy(BacktestStrategyWrapper):
@@ -247,15 +256,15 @@ def test_backtest_with_simple_strategy(tmp_path: Path, monkeypatch: pytest.Monke
 
     # パスのモック設定
     # monkeypatch.setattr(
-    #     "app_server.domain.core_logic.trading_core.get_trade_result_dir",
+    #     "app_server.application.trading_service.trading_core.get_trade_result_dir",
     #     lambda: str(tmp_path / "trade_results"),
     # )
     # monkeypatch.setattr(
-    #     "app_server.domain.core_logic.trading_core.get_pnl_summary_dir",
+    #     "app_server.application.trading_service.trading_core.get_pnl_summary_dir",
     #     lambda: str(tmp_path / "pnl_summary"),
     # )
     monkeypatch.setattr(
-        "app_server.domain.core_logic.trading_core.get_trade_result_file_per_day",
+        "app_server.config.trading_settings.get_trade_result_file_per_day",
         lambda: False,
     )
 
@@ -264,11 +273,17 @@ def test_backtest_with_simple_strategy(tmp_path: Path, monkeypatch: pytest.Monke
     if data.empty:
         pytest.skip("yfinance でデータを取得できませんでした")
 
-    # TradingCoreとStrategyを準備
+    # TradingServiceとStrategyを準備
     processor = CsvBatchProcessor()
     strategy = SimpleStrategy(max_spread=10)
     order_sender = MockOrderSender()
-    core = TradingCore(processor=processor, strategy=strategy, order_sender=order_sender)
+    trade_result_repository = CsvTradeResultRepository()
+    core = TradingService(
+        processor=processor,
+        strategy=strategy,
+        order_sender=order_sender,
+        trade_result_repository=trade_result_repository,
+    )
 
     # backtestingライブラリ用のStrategyラッパーを作成
     class WrappedStrategy(BacktestStrategyWrapper):
@@ -305,5 +320,7 @@ def test_backtest_with_simple_strategy(tmp_path: Path, monkeypatch: pytest.Monke
         with pnl_files[0].open(encoding="utf-8", newline="") as f:
             summary_rows = list(csv.DictReader(f))
             if len(summary_rows) > 0:
+                print(f"損益集計: 取引数={summary_rows[0]['trade_count']}")
+                print(f"損益集計: 取引数={summary_rows[0]['trade_count']}")
                 print(f"損益集計: 取引数={summary_rows[0]['trade_count']}")
                 print(f"損益集計: 取引数={summary_rows[0]['trade_count']}")
