@@ -4,17 +4,11 @@ import asyncio
 import json
 import uuid
 
-import zmq
-
 import app_server.share.global_value as g
-from app_server.config.trading_settings import get_retry_count, get_response_timeout_sec
-from app_server.model.trading import (
-    OrderCommand,
-    OrderInfo,
-    OrderInfoList,
-    PriceInfo,
-)
-from app_server.service.order.base import Mt4RequestTimeoutError, OrderSender
+import zmq
+from app_server.config.trading_settings import get_response_timeout_sec, get_retry_count
+from app_server.domain.order.base import Mt4RequestTimeoutError, OrderSender
+from app_server.model.trading import OrderCommand, OrderInfo, OrderInfoList, PriceInfo
 from app_server.share.logger_util import get_logger
 
 logger = get_logger()
@@ -105,9 +99,7 @@ class Mt4OrderSender(OrderSender):
                 raw = await _wait_response(request_id)
                 await _unregister_request(request_id)
                 if raw is None:
-                    last_error = Mt4RequestTimeoutError(
-                        f"PRICE_INFO 応答タイムアウト (request_id={request_id})"
-                    )
+                    last_error = Mt4RequestTimeoutError(f"PRICE_INFO 応答タイムアウト (request_id={request_id})")
                     logger.warning("PRICE_INFO タイムアウト attempt=%s", attempt + 1)
                     continue
                 data = json.loads(raw)
@@ -115,9 +107,7 @@ class Mt4OrderSender(OrderSender):
                     last_error = ValueError("応答が price_info ではありません")
                     continue
                 if data.get("request_id") != request_id:
-                    last_error = ValueError(
-                        f"request_id 不一致: 期待 {request_id}, 受信 {data.get('request_id')}"
-                    )
+                    last_error = ValueError(f"request_id 不一致: 期待 {request_id}, 受信 {data.get('request_id')}")
                     logger.warning("PRICE_INFO request_id 不一致 attempt=%s", attempt + 1)
                     continue
                 return PriceInfo(
@@ -156,9 +146,7 @@ class Mt4OrderSender(OrderSender):
                 raw = await _wait_response(request_id)
                 await _unregister_request(request_id)
                 if raw is None:
-                    last_error = Mt4RequestTimeoutError(
-                        f"ORDER_INFO 応答タイムアウト (request_id={request_id})"
-                    )
+                    last_error = Mt4RequestTimeoutError(f"ORDER_INFO 応答タイムアウト (request_id={request_id})")
                     logger.warning("ORDER_INFO タイムアウト attempt=%s", attempt + 1)
                     continue
                 data = json.loads(raw)
@@ -166,9 +154,7 @@ class Mt4OrderSender(OrderSender):
                     last_error = ValueError("応答が order_info_list ではありません")
                     continue
                 if data.get("request_id") != request_id:
-                    last_error = ValueError(
-                        f"request_id 不一致: 期待 {request_id}, 受信 {data.get('request_id')}"
-                    )
+                    last_error = ValueError(f"request_id 不一致: 期待 {request_id}, 受信 {data.get('request_id')}")
                     logger.warning("ORDER_INFO request_id 不一致 attempt=%s", attempt + 1)
                     continue
                 orders_raw = data.get("orders", [])

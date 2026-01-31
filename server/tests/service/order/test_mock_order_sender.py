@@ -1,8 +1,8 @@
 """命令部モックテスト"""
 
 import pytest
+from app_server.domain.order.mock_order_sender import MockOrderSender
 from app_server.model.trading import OrderCommand
-from app_server.service.order.mock_order_sender import MockOrderSender
 
 
 def test_mock_order_sender_records_commands() -> None:
@@ -28,4 +28,5 @@ def test_mock_order_sender_clear() -> None:
     sender = MockOrderSender()
     sender.send_order(OrderCommand(action="ORDER", symbol="USDJPY", type="BUY", lots=0.01))
     sender.clear()
+    assert len(sender.sent_commands) == 0
     assert len(sender.sent_commands) == 0

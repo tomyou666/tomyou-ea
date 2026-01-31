@@ -1,11 +1,7 @@
 """テスト用モック命令部"""
 
-from app_server.model.trading import (
-    OrderCommand,
-    OrderInfoList,
-    PriceInfo,
-)
-from app_server.service.order.base import OrderSender
+from app_server.domain.order.base import OrderSender
+from app_server.model.trading import OrderCommand, OrderInfoList, PriceInfo
 
 
 class MockOrderSender(OrderSender):

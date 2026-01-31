@@ -1,8 +1,8 @@
 """売買・損益集計用 API"""
 
 import app_server.share.global_value as g
-from app_server.service.core_logic.base import CoreLogic
-from app_server.service.order.base import Mt4RequestTimeoutError, OrderSender
+from app_server.domain.core_logic.base import CoreLogic
+from app_server.domain.order.base import Mt4RequestTimeoutError, OrderSender
 from fastapi import APIRouter, Depends, HTTPException
 
 router = APIRouter(prefix="/trading", tags=["trading"])

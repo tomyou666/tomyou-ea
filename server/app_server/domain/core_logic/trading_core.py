@@ -7,23 +7,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from app_server.config.trading_settings import (
-    get_pnl_summary_dir,
-    get_trade_result_dir,
-    get_trade_result_file_per_day,
-)
-from app_server.model.trading import (
-    OrderResult,
-    PnlSummaryRow,
-    Signal,
-    SignalResult,
-    TickDto,
-    TradeResultRow,
-)
-from app_server.service.core_logic.base import CoreLogic
-from app_server.service.order.base import OrderSender
-from app_server.service.processor.base import Processor
-from app_server.service.strategy.base import Strategy
+from app_server.config.trading_settings import get_pnl_summary_dir, get_trade_result_dir, get_trade_result_file_per_day
+from app_server.domain.core_logic.base import CoreLogic
+from app_server.domain.order.base import OrderSender
+from app_server.domain.processor.base import Processor
+from app_server.domain.strategy.base import Strategy
+from app_server.model.trading import OrderResult, PnlSummaryRow, Signal, SignalResult, TickDto, TradeResultRow
 from app_server.share.logger_util import get_logger
 from injector import inject
 
@@ -72,10 +61,7 @@ class TradingCore(CoreLogic):
 
     def _trade_result_path(self) -> Path:
         if self._file_per_day:
-            return (
-                self._result_dir
-                / f"trade_results_{datetime.now().strftime('%Y%m%d')}.csv"
-            )
+            return self._result_dir / f"trade_results_{datetime.now().strftime('%Y%m%d')}.csv"
         return self._result_dir / "trade_results.csv"
 
     def get_trade_result_path(self) -> Path:
@@ -107,9 +93,7 @@ class TradingCore(CoreLogic):
             sl = out.sl if isinstance(out, SignalResult) else 0.0
             tp = out.tp if isinstance(out, SignalResult) else 0.0
             price = 0.0  # 成行
-            cmd = self.order_sender.build_order_command(
-                out, symbol, lots=lots, price=price, sl=sl, tp=tp
-            )
+            cmd = self.order_sender.build_order_command(out, symbol, lots=lots, price=price, sl=sl, tp=tp)
             if self.order_sender.send_order(cmd):
                 logger.info("シグナルに基づき注文送信: %s %s", signal, symbol)
             # 売買結果の記録は MT4 から order_result 受信時（on_order_result）で行う
@@ -203,9 +187,7 @@ class TradingCore(CoreLogic):
             files = sorted(self._result_dir.glob("trade_results_*.csv"))
         else:
             files = (
-                [self._result_dir / "trade_results.csv"]
-                if (self._result_dir / "trade_results.csv").exists()
-                else []
+                [self._result_dir / "trade_results.csv"] if (self._result_dir / "trade_results.csv").exists() else []
             )
         rows: list[TradeResultRow] = []
         for path in files:
@@ -246,12 +228,10 @@ class TradingCore(CoreLogic):
             win_count=win_count,
             loss_count=loss_count,
         )
-        out_path = (
-            self._pnl_dir
-            / f"pnl_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        )
+        out_path = self._pnl_dir / f"pnl_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         with out_path.open("w", encoding="utf-8", newline="") as f:
             w = csv.DictWriter(f, fieldnames=PNL_SUMMARY_HEADER)
             w.writeheader()
             w.writerow(summary.model_dump())
+        logger.info("損益集計出力: %s", out_path)
         logger.info("損益集計出力: %s", out_path)

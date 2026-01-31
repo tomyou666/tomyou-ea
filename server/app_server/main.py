@@ -5,11 +5,10 @@ from contextlib import asynccontextmanager
 import app_server.share.global_value as g
 import zmq
 import zmq.asyncio  # asyncio と統合: PULL の recv を非同期化し、同一イベントループで Lock/Queue と共存
-
 from app_server.config.di import DI
 from app_server.config.trading_settings import get_zmq_recv_port, get_zmq_send_port
+from app_server.domain.core_logic.base import CoreLogic
 from app_server.routers import trading_router
-from app_server.service.core_logic.base import CoreLogic
 from app_server.share.logger_util import get_logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

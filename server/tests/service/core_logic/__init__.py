@@ -1,1 +1,1 @@
-# tests.service.core_logic
+# tests.domain.core_logic

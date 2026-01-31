@@ -1,8 +1,8 @@
 """リアルタイムティック用加工部"""
 
+from app_server.domain.processor.base import Processor
+from app_server.domain.processor.util import ProcessorUtil
 from app_server.model.trading import TickDto
-from app_server.service.processor.base import Processor
-from app_server.service.processor.util import ProcessorUtil
 from app_server.share.logger_util import get_logger
 
 logger = get_logger()

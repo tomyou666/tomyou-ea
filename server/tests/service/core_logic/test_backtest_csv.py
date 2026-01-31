@@ -6,12 +6,12 @@ from pathlib import Path
 import pandas as pd
 import pytest
 import yfinance as yf
+from app_server.domain.core_logic.trading_core import TradingCore
+from app_server.domain.order.mock_order_sender import MockOrderSender
+from app_server.domain.processor.csv_processor import CsvBatchProcessor
+from app_server.domain.strategy.base import Strategy
+from app_server.domain.strategy.simple_strategy import SimpleStrategy
 from app_server.model.trading import Signal, SignalResult, TickDto
-from app_server.service.core_logic.trading_core import TradingCore
-from app_server.service.order.mock_order_sender import MockOrderSender
-from app_server.service.processor.csv_processor import CsvBatchProcessor
-from app_server.service.strategy.base import Strategy
-from app_server.service.strategy.simple_strategy import SimpleStrategy
 from app_server.share.common_util import signal_to_trade_result_row
 from backtesting import Backtest
 from backtesting import Strategy as BacktestStrategy
@@ -20,7 +20,7 @@ from backtesting import Strategy as BacktestStrategy
 class BacktestStrategyWrapper(BacktestStrategy):
     """backtestingライブラリのStrategyをラップし、既存のStrategyクラスを使用する。
 
-    既存のStrategyクラス（app_server.service.strategy.base.Strategy）を
+    既存のStrategyクラス（app_server.domain.strategy.base.Strategy）を
     backtestingライブラリで使用できるようにするラッパー。
     """
 
@@ -98,9 +98,7 @@ class TestStrategyFirstTickBuy(Strategy):
     def __init__(self) -> None:
         self._first = True
 
-    def next(
-        self, tick: TickDto, context: object | None = None
-    ) -> Signal | SignalResult:
+    def next(self, tick: TickDto, context: object | None = None) -> Signal | SignalResult:
         if self._first:
             self._first = False
             return SignalResult(signal=Signal.BUY, lots=0.01, sl=0.0, tp=0.0)
@@ -157,39 +155,33 @@ def fetch_ohlcv_from_yfinance(
     return df[["Open", "High", "Low", "Close", "Volume"]]
 
 
-def test_backtest_with_backtesting_library(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_backtest_with_backtesting_library(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """backtestingライブラリを使用してバックテストを実行し、結果をassertする。"""
 
     # パスのモック設定
     # monkeypatch.setattr(
-    #     "app_server.service.core_logic.trading_core.get_trade_result_dir",
+    #     "app_server.domain.core_logic.trading_core.get_trade_result_dir",
     #     lambda: str(tmp_path / "trade_results"),
     # )
     # monkeypatch.setattr(
-    #     "app_server.service.core_logic.trading_core.get_pnl_summary_dir",
+    #     "app_server.domain.core_logic.trading_core.get_pnl_summary_dir",
     #     lambda: str(tmp_path / "pnl_summary"),
     # )
     monkeypatch.setattr(
-        "app_server.service.core_logic.trading_core.get_trade_result_file_per_day",
+        "app_server.domain.core_logic.trading_core.get_trade_result_file_per_day",
         lambda: False,
     )
 
     # OHLCVデータを取得
     data = fetch_ohlcv_from_yfinance(ticker="USDJPY=X", period="5d", interval="1d")
     if data.empty:
-        pytest.skip(
-            "yfinance でデータを取得できませんでした（ネットワークまたは銘柄を確認してください）"
-        )
+        pytest.skip("yfinance でデータを取得できませんでした（ネットワークまたは銘柄を確認してください）")
 
     # TradingCoreとStrategyを準備
     processor = CsvBatchProcessor()
     strategy = TestStrategyFirstTickBuy()
     order_sender = MockOrderSender()
-    core = TradingCore(
-        processor=processor, strategy=strategy, order_sender=order_sender
-    )
+    core = TradingCore(processor=processor, strategy=strategy, order_sender=order_sender)
 
     # backtestingライブラリ用のStrategyラッパーを作成
     class WrappedStrategy(BacktestStrategyWrapper):
@@ -206,32 +198,16 @@ def test_backtest_with_backtesting_library(
     assert "Start" in results or hasattr(results, "Start")
     assert "End" in results or hasattr(results, "End")
     print("\nバックテスト結果:")
-    start = (
-        results.get("Start")
-        if isinstance(results, dict)
-        else getattr(results, "Start", None)
-    )
-    end = (
-        results.get("End")
-        if isinstance(results, dict)
-        else getattr(results, "End", None)
-    )
+    start = results.get("Start") if isinstance(results, dict) else getattr(results, "Start", None)
+    end = results.get("End") if isinstance(results, dict) else getattr(results, "End", None)
     print(f"開始: {start}")
     print(f"終了: {end}")
     if "Return [%]" in results or hasattr(results, "Return"):
-        ret = (
-            results.get("Return [%]")
-            if isinstance(results, dict)
-            else getattr(results, "Return", None)
-        )
+        ret = results.get("Return [%]") if isinstance(results, dict) else getattr(results, "Return", None)
         if ret is not None:
             print(f"リターン: {ret:.2f}%")
     if "Sharpe Ratio" in results or hasattr(results, "Sharpe Ratio"):
-        sharpe = (
-            results.get("Sharpe Ratio")
-            if isinstance(results, dict)
-            else getattr(results, "Sharpe Ratio", None)
-        )
+        sharpe = results.get("Sharpe Ratio") if isinstance(results, dict) else getattr(results, "Sharpe Ratio", None)
         if sharpe is not None:
             print(f"シャープレシオ: {sharpe:.2f}")
 
@@ -259,33 +235,27 @@ def test_backtest_with_backtesting_library(
     with pnl_files[0].open(encoding="utf-8", newline="") as f:
         summary_rows = list(csv.DictReader(f))
         assert len(summary_rows) == 1, "損益集計は1行である必要があります"
-        assert int(summary_rows[0]["trade_count"]) >= 1, (
-            "取引数が1件以上である必要があります"
-        )
-        assert summary_rows[0]["period_type"] == "daily", (
-            "期間タイプがdailyである必要があります"
-        )
+        assert int(summary_rows[0]["trade_count"]) >= 1, "取引数が1件以上である必要があります"
+        assert summary_rows[0]["period_type"] == "daily", "期間タイプがdailyである必要があります"
         print(f"\n損益集計:")
         print(f"取引数: {summary_rows[0]['trade_count']}")
         print(f"総損益: {summary_rows[0]['total_pnl']}")
 
 
-def test_backtest_with_simple_strategy(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_backtest_with_simple_strategy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """SimpleStrategyを使用したbacktestingライブラリのバックテスト。"""
 
     # パスのモック設定
     # monkeypatch.setattr(
-    #     "app_server.service.core_logic.trading_core.get_trade_result_dir",
+    #     "app_server.domain.core_logic.trading_core.get_trade_result_dir",
     #     lambda: str(tmp_path / "trade_results"),
     # )
     # monkeypatch.setattr(
-    #     "app_server.service.core_logic.trading_core.get_pnl_summary_dir",
+    #     "app_server.domain.core_logic.trading_core.get_pnl_summary_dir",
     #     lambda: str(tmp_path / "pnl_summary"),
     # )
     monkeypatch.setattr(
-        "app_server.service.core_logic.trading_core.get_trade_result_file_per_day",
+        "app_server.domain.core_logic.trading_core.get_trade_result_file_per_day",
         lambda: False,
     )
 
@@ -298,9 +268,7 @@ def test_backtest_with_simple_strategy(
     processor = CsvBatchProcessor()
     strategy = SimpleStrategy(max_spread=10)
     order_sender = MockOrderSender()
-    core = TradingCore(
-        processor=processor, strategy=strategy, order_sender=order_sender
-    )
+    core = TradingCore(processor=processor, strategy=strategy, order_sender=order_sender)
 
     # backtestingライブラリ用のStrategyラッパーを作成
     class WrappedStrategy(BacktestStrategyWrapper):
@@ -314,16 +282,8 @@ def test_backtest_with_simple_strategy(
     # バックテスト結果をassert
     assert results is not None
     print("\nバックテスト結果 (SimpleStrategy):")
-    start = (
-        results.get("Start")
-        if isinstance(results, dict)
-        else getattr(results, "Start", None)
-    )
-    end = (
-        results.get("End")
-        if isinstance(results, dict)
-        else getattr(results, "End", None)
-    )
+    start = results.get("Start") if isinstance(results, dict) else getattr(results, "Start", None)
+    end = results.get("End") if isinstance(results, dict) else getattr(results, "End", None)
     print(f"開始: {start}")
     print(f"終了: {end}")
 
@@ -345,4 +305,5 @@ def test_backtest_with_simple_strategy(
         with pnl_files[0].open(encoding="utf-8", newline="") as f:
             summary_rows = list(csv.DictReader(f))
             if len(summary_rows) > 0:
+                print(f"損益集計: 取引数={summary_rows[0]['trade_count']}")
                 print(f"損益集計: 取引数={summary_rows[0]['trade_count']}")

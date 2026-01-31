@@ -1,8 +1,8 @@
 """加工部テスト"""
 
 import pytest
+from app_server.domain.processor.tick_processor import TickProcessor
 from app_server.model.trading import TickDto
-from app_server.service.processor.tick_processor import TickProcessor
 
 
 def test_tick_processor_parse_valid_csv() -> None:
@@ -29,4 +29,5 @@ def test_tick_processor_parse_invalid_returns_none() -> None:
 def test_tick_processor_parse_list_returns_none() -> None:
     """リストを渡した場合は None（TickProcessor は1件用）"""
     proc = TickProcessor()
+    assert proc.parse(["USDJPY,149.123,149.125,2,2025.01.29 12:00:00"]) is None
     assert proc.parse(["USDJPY,149.123,149.125,2,2025.01.29 12:00:00"]) is None

@@ -3,8 +3,8 @@
 from pathlib import Path
 
 import pytest
+from app_server.domain.processor.csv_processor import CsvBatchProcessor
 from app_server.model.trading import TickDto
-from app_server.service.processor.csv_processor import CsvBatchProcessor
 
 
 def test_csv_batch_processor_parse_single_line() -> None:
@@ -63,10 +63,7 @@ def test_csv_batch_processor_iter_from_file(tmp_path: Path) -> None:
     """CSVファイルから1件ずつ TickDto が yield される"""
     csv_file = tmp_path / "ticks.csv"
     csv_file.write_text(
-        "# comment\n"
-        "USDJPY,149.123,149.125,2,2025.01.29 12:00:00\n"
-        "USDJPY,149.124,149.126,2,2025.01.29 12:01:00\n"
-        "\n",
+        "# comment\nUSDJPY,149.123,149.125,2,2025.01.29 12:00:00\nUSDJPY,149.124,149.126,2,2025.01.29 12:01:00\n\n",
         encoding="utf-8",
     )
     proc = CsvBatchProcessor()
@@ -80,4 +77,5 @@ def test_csv_batch_processor_iter_from_file_not_exists() -> None:
     """存在しないファイルの場合は空で終了"""
     proc = CsvBatchProcessor()
     ticks = list(proc._iter_from_file("/nonexistent/ticks.csv"))
+    assert len(ticks) == 0
     assert len(ticks) == 0

@@ -30,7 +30,7 @@ tomyou-ea/
 │   │   ├── config/            # 設定（DI・trading_settings）
 │   │   ├── model/trading/     # DTO（TickDto, OrderCommand 等）
 │   │   ├── routers/           # FastAPI ルーター
-│   │   ├── service/
+│   │   ├── domain/
 │   │   │   ├── core_logic/    # 戦略実行・注文判断
 │   │   │   ├── order/         # 注文送信（mock / mt4）
 │   │   │   ├── processor/     # ティック・CSV 処理

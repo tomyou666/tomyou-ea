@@ -1,13 +1,13 @@
 import zmq
-from app_server.service.core_logic.base import CoreLogic
-from app_server.service.core_logic.trading_core import TradingCore
-from app_server.service.order.base import OrderSender
-from app_server.service.order.mock_order_sender import MockOrderSender
-from app_server.service.order.mt4_order_sender import Mt4OrderSender
-from app_server.service.processor.base import Processor
-from app_server.service.processor.tick_processor import TickProcessor
-from app_server.service.strategy.base import Strategy
-from app_server.service.strategy.ma_crossover_strategy import MACrossoverStrategy
+from app_server.domain.core_logic.base import CoreLogic
+from app_server.domain.core_logic.trading_core import TradingCore
+from app_server.domain.order.base import OrderSender
+from app_server.domain.order.mock_order_sender import MockOrderSender
+from app_server.domain.order.mt4_order_sender import Mt4OrderSender
+from app_server.domain.processor.base import Processor
+from app_server.domain.processor.tick_processor import TickProcessor
+from app_server.domain.strategy.base import Strategy
+from app_server.domain.strategy.ma_crossover_strategy import MACrossoverStrategy
 from app_server.share.common_util import CommonUtil
 from injector import Binder, Injector, Module, provider, singleton
 
@@ -47,4 +47,5 @@ class DI:
 
     def resolve(self, cls):
         """injector.get() で依存関係を解決してインスタンスを生成する"""
+        return self.injector.get(cls)
         return self.injector.get(cls)
