@@ -7,9 +7,10 @@ import uuid
 import app_server.share.global_value as g
 import zmq
 from app_server.config.trading_settings import get_response_timeout_sec, get_retry_count
-from app_server.domain.order.base import Mt4RequestTimeoutError, OrderSender
+from app_server.domain.order.base import OrderSender
 from app_server.model.trading import OrderCommand, OrderInfo, OrderInfoList, PriceInfo
 from app_server.share.logger_util import get_logger
+from app_server.share.my_exception import Mt4RequestTimeoutError
 
 logger = get_logger()
 

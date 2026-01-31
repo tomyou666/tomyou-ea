@@ -2,7 +2,8 @@
 
 import app_server.share.global_value as g
 from app_server.domain.core_logic.base import CoreLogic
-from app_server.domain.order.base import Mt4RequestTimeoutError, OrderSender
+from app_server.domain.order.base import OrderSender
+from app_server.share.my_exception import Mt4RequestTimeoutError
 from fastapi import APIRouter, Depends, HTTPException
 
 router = APIRouter(prefix="/trading", tags=["trading"])

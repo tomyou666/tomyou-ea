@@ -2,19 +2,7 @@
 
 from abc import ABCMeta, abstractmethod
 
-from app_server.model.trading import (
-    OrderCommand,
-    OrderInfoList,
-    PriceInfo,
-    Signal,
-    SignalResult,
-)
-
-
-class Mt4RequestTimeoutError(Exception):
-    """応答がタイムアウトまたはリトライ上限に達した場合のエラー（order 層で送出）"""
-
-    pass
+from app_server.model.trading import OrderCommand, OrderInfoList, PriceInfo, Signal, SignalResult
 
 
 class OrderSender(metaclass=ABCMeta):
