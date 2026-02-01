@@ -44,6 +44,11 @@ datetime lastReconnectTry = 0;
 int prevPendingTickets[];
 int prevPendingOrderTypes[];
 
+//--- 重複リクエスト除外用（直近10件の request_id）
+#define MAX_RECENT_REQUEST_IDS 10
+string g_RecentRequestIds[MAX_RECENT_REQUEST_IDS];
+int g_RecentRequestIdsCount = 0;
+
 //+------------------------------------------------------------------+
 //| Expert initialization function                                    |
 //+------------------------------------------------------------------+
@@ -244,6 +249,41 @@ void ReceiveCommands()
 }
 
 //+------------------------------------------------------------------+
+//| 直近の request_id に含まれるか（含まれる＝重複なので true を返す）   |
+//+------------------------------------------------------------------+
+bool IsDuplicateRequestId(string requestId)
+{
+    if(requestId == "")
+    return false;
+    for(int i = 0; i < g_RecentRequestIdsCount; i++)
+    {
+        if(g_RecentRequestIds[i] == requestId)
+        return true;
+    }
+    return false;
+}
+
+//+------------------------------------------------------------------+
+//| 直近10件の request_id に追加（古いものは捨てる）                   |
+//+------------------------------------------------------------------+
+void AddRecentRequestId(string requestId)
+{
+    if(requestId == "")
+    return;
+    if(g_RecentRequestIdsCount < MAX_RECENT_REQUEST_IDS)
+    {
+        g_RecentRequestIds[g_RecentRequestIdsCount] = requestId;
+        g_RecentRequestIdsCount++;
+    }
+    else
+    {
+        for(int i = 0; i < MAX_RECENT_REQUEST_IDS - 1; i++)
+        g_RecentRequestIds[i] = g_RecentRequestIds[i + 1];
+        g_RecentRequestIds[MAX_RECENT_REQUEST_IDS - 1] = requestId;
+    }
+}
+
+//+------------------------------------------------------------------+
 //| コマンド振り分け（action: ORDER / CLOSE / PRICE_INFO / ORDER_INFO / SUBSCRIBE） |
 //+------------------------------------------------------------------+
 void ProcessCommand(string jsonCommand)
@@ -254,6 +294,15 @@ void ProcessCommand(string jsonCommand)
         Print("JSONデシリアライズ失敗: ", jsonCommand);
         return;
     }
+
+    string requestId = cmd["request_id"].ToStr();
+    if(requestId != "" && IsDuplicateRequestId(requestId))
+    {
+        Print("重複リクエストをスキップ: request_id=", requestId);
+        return;
+    }
+    if(requestId != "")
+    AddRecentRequestId(requestId);
 
     string action = cmd["action"].ToStr();
     if(action == "ORDER")
@@ -267,9 +316,6 @@ void ProcessCommand(string jsonCommand)
     else
     if(action == "ORDER_INFO")
     ProcessOrderInfoCommand(cmd);
-    else
-    if(action == "SUBSCRIBE")
-    Print("購読リクエスト受信（必要に応じて実装）");
     else
     Print("不明なコマンド: ", jsonCommand);
 }
