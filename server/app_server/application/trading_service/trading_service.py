@@ -70,14 +70,37 @@ class TradingService(TradingServiceBase):
     def on_order_result(self, raw: str) -> None:
         try:
             data = json.loads(raw)
+            request_id = data.get("request_id", "")
+            status = data.get("status", "")
+            if status == "FAILED":
+                code = data.get("code", 0)
+                message = data.get("message", "")
+                row = TradeResultRow(
+                    executed_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    symbol="",
+                    side="BUY",
+                    lots=0.0,
+                    price=0.0,
+                    ticket=0,
+                    status="FAILED",
+                    pnl=0.0,
+                    memo=f"code={code} {message}",
+                )
+                self.trade_result_repository.append_trade_result(row)
+                logger.warning(
+                    "注文結果失敗受信: request_id=%s code=%s message=%s",
+                    request_id,
+                    code,
+                    message,
+                )
+                return
             if data.get("type") != "order_result":
                 return
-            request_id = data.get("request_id", "")
             res = OrderResult(
                 type="order_result",
                 request_id=request_id,
                 ticket=data.get("ticket", 0),
-                status=data.get("status", ""),
+                status=status,
             )
             row = TradeResultRow(
                 executed_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),

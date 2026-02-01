@@ -49,6 +49,10 @@ int prevPendingOrderTypes[];
 string g_RecentRequestIds[MAX_RECENT_REQUEST_IDS];
 int g_RecentRequestIdsCount = 0;
 
+//--- MT4→Python 応答送信の再送回数（設計書: 応答失敗時の処理）
+#define PUSH_SEND_RETRY_COUNT 3
+#define PUSH_SEND_RETRY_DELAY_MS 10
+
 //+------------------------------------------------------------------+
 //| Expert initialization function                                    |
 //+------------------------------------------------------------------+
@@ -209,8 +213,13 @@ void SendPendingOpened(int ticket, string symbol, string orderType, double lots,
     msg["open_time"] = (openTime > 0) ? TimeToString(openTime, TIME_DATE|TIME_SECONDS) : "";
     string msgStr = msg.Serialize();
     ZmqMsg message(msgStr);
-    if(!pushSocket.send(message, true) && EnableReconnect)
-    isConnected = false;
+    if(!pushSocket.send(message, true))
+    {
+        Print("MT4→Python 送信失敗（pending_opened）: チケット#", ticket);
+        if(EnableReconnect)
+        isConnected = false;
+    }
+    else
     Print("ペンディング約定通知: チケット#", ticket, " ", symbol, " ", orderType);
 }
 
@@ -284,6 +293,25 @@ void AddRecentRequestId(string requestId)
 }
 
 //+------------------------------------------------------------------+
+//| MT4→Python 応答送信（再送付き）。応答を待つメッセージ用。失敗時はログ出力し接続断扱い。 |
+//+------------------------------------------------------------------+
+bool SendToPythonWithRetry(string msgStr, string logLabel)
+{
+    for(int attempt = 0; attempt < PUSH_SEND_RETRY_COUNT; attempt++)
+    {
+        if(attempt > 0)
+        Sleep(PUSH_SEND_RETRY_DELAY_MS);
+        ZmqMsg message(msgStr);
+        if(pushSocket.send(message, true))
+        return true;
+    }
+    Print("MT4→Python 送信失敗（", logLabel, "）: 再送 ", PUSH_SEND_RETRY_COUNT, " 回後も失敗");
+    if(EnableReconnect)
+    isConnected = false;
+    return false;
+}
+
+//+------------------------------------------------------------------+
 //| コマンド振り分け（action: ORDER / CLOSE / PRICE_INFO / ORDER_INFO / SUBSCRIBE） |
 //+------------------------------------------------------------------+
 void ProcessCommand(string jsonCommand)
@@ -298,7 +326,7 @@ void ProcessCommand(string jsonCommand)
     string requestId = cmd["request_id"].ToStr();
     if(requestId != "" && IsDuplicateRequestId(requestId))
     {
-        Print("重複リクエストをスキップ: request_id=", requestId);
+        Print("重複リクエストをスキップ: request_id = ", requestId);
         return;
     }
     if(requestId != "")
@@ -362,7 +390,7 @@ void ProcessOrderCommand(CJAVal &data)
         if(priceFromCmd <= 0)
         {
             Print("指値買い: price が未指定または 0");
-            SendOrderResult(requestId, - 1, "FAILED:129"); // Invalid price
+            SendOrderResultFailure(requestId, 129, ErrorCodeToMessage(129)); // Invalid price
             return;
         }
         price = priceFromCmd;
@@ -375,7 +403,7 @@ void ProcessOrderCommand(CJAVal &data)
         if(priceFromCmd <= 0)
         {
             Print("指値売り: price が未指定または 0");
-            SendOrderResult(requestId, - 1, "FAILED:129");
+            SendOrderResultFailure(requestId, 129, ErrorCodeToMessage(129));
             return;
         }
         price = priceFromCmd;
@@ -388,7 +416,7 @@ void ProcessOrderCommand(CJAVal &data)
         if(priceFromCmd <= 0)
         {
             Print("逆指値買い: price が未指定または 0");
-            SendOrderResult(requestId, - 1, "FAILED:129");
+            SendOrderResultFailure(requestId, 129, ErrorCodeToMessage(129));
             return;
         }
         price = priceFromCmd;
@@ -401,7 +429,7 @@ void ProcessOrderCommand(CJAVal &data)
         if(priceFromCmd <= 0)
         {
             Print("逆指値売り: price が未指定または 0");
-            SendOrderResult(requestId, - 1, "FAILED:129");
+            SendOrderResultFailure(requestId, 129, ErrorCodeToMessage(129));
             return;
         }
         price = priceFromCmd;
@@ -410,7 +438,7 @@ void ProcessOrderCommand(CJAVal &data)
     if(cmd < 0)
     {
         Print("不明な注文種別: ", orderType);
-        SendOrderResult(requestId, - 1, "FAILED:INVALID_ORDER_TYPE");
+        SendOrderResultFailure(requestId, 3, "不明な注文種別"); // 不正な取引パラメータ扱い
         return;
     }
 
@@ -449,7 +477,7 @@ void ProcessOrderCommand(CJAVal &data)
         {
             Print("注文失敗: エラー ", err, " - ", ErrorDescription(err),
             (attempt > 0 ? " (リトライ " + IntegerToString(attempt) + "回後)" : ""));
-            SendOrderResult(requestId, - 1, "FAILED:" + IntegerToString(err));
+            SendOrderResultFailure(requestId, err, ErrorCodeToMessage(err));
             return;
         }
 
@@ -461,7 +489,7 @@ void ProcessOrderCommand(CJAVal &data)
     {
         Print("注文成功: チケット#", ticket, " ", symbol, " ", orderType, " ", lots, "ロット",
         (attempt > 0 ? " (リトライ " + IntegerToString(attempt) + "回後)" : ""));
-        SendOrderResult(requestId, ticket, "SUCCESS");
+        SendOrderResultSuccess(requestId, ticket);
     }
 }
 
@@ -475,14 +503,14 @@ void ProcessCloseCommand(CJAVal &data)
 
     if(ticket <= 0)
     {
-        SendOrderResult(requestId, 0, "INVALID_TICKET");
+        SendOrderResultFailure(requestId, 2, ErrorCodeToMessage(2)); // INVALID_TICKET
         return;
     }
 
     if(!OrderSelect(ticket, SELECT_BY_TICKET))
     {
         Print("決済失敗: チケット#", ticket, " が見つかりません");
-        SendOrderResult(requestId, ticket, "TICKET_NOT_FOUND");
+        SendOrderResultFailure(requestId, 1, ErrorCodeToMessage(1)); // TICKET_NOT_FOUND
         return;
     }
 
@@ -505,12 +533,12 @@ void ProcessCloseCommand(CJAVal &data)
     if(closed)
     {
         Print("決済成功: チケット#", ticket);
-        SendOrderResult(requestId, ticket, "CLOSED");
+        SendOrderResultSuccess(requestId, ticket);
     }
     else
     {
         Print("決済失敗: チケット#", ticket);
-        SendOrderResult(requestId, ticket, "CLOSE_FAILED");
+        SendOrderResultFailure(requestId, 3, ErrorCodeToMessage(3)); // CLOSE_FAILED
     }
 }
 
@@ -526,19 +554,25 @@ void ProcessPriceInfoCommand(CJAVal &data)
 
     double point = MarketInfo(symbol, MODE_POINT);
     int digits = (int)MarketInfo(symbol, MODE_DIGITS);
+
+    // シンボルが無効・マーケット情報を取得できない場合は失敗応答（設計書 2.3 失敗時形式）
+    if(StringLen(symbol) == 0 || point <= 0)
+    {
+        SendOrderResultFailure(requestId, 10, ErrorCodeToMessage(10)); // INVALID_SYMBOL
+        return;
+    }
+
     double pips = (digits == 3 || digits == 5) ? (point * 10.0) : point;
 
     CJAVal result;
     result["type"] = "price_info";
     result["request_id"] = requestId;
+    result["status"] = "SUCCESS";
     result["symbol"] = symbol;
     result["point"] = point;
     result["digits"] = digits;
     result["pips"] = pips;
-    string resultStr = result.Serialize();
-    ZmqMsg message(resultStr);
-    if(!pushSocket.send(message, true) && EnableReconnect)
-    isConnected = false;
+    SendToPythonWithRetry(result.Serialize(), "price_info");
 }
 
 //+------------------------------------------------------------------+
@@ -552,6 +586,7 @@ void ProcessOrderInfoCommand(CJAVal &data)
     CJAVal result;
     result["type"] = "order_info_list";
     result["request_id"] = requestId;
+    result["status"] = "SUCCESS";
     CJAVal ordersArray;
     int count = 0;
 
@@ -578,10 +613,7 @@ void ProcessOrderInfoCommand(CJAVal &data)
 
     result["count"] = count;
     result["orders"] = ordersArray;
-    string resultStr = result.Serialize();
-    ZmqMsg message(resultStr);
-    if(!pushSocket.send(message, true) && EnableReconnect)
-    isConnected = false;
+    SendToPythonWithRetry(result.Serialize(), "order_info_list");
 }
 
 //+------------------------------------------------------------------+
@@ -622,19 +654,46 @@ string OrderTypeToString(int otype)
 }
 
 //+------------------------------------------------------------------+
-//| 注文結果送信（ type=order_result, request_id, ticket, status）    |
+//| エラーコードに対応するメッセージ文字列を返す                     |
 //+------------------------------------------------------------------+
-void SendOrderResult(string requestId, int ticket, string status)
+string ErrorCodeToMessage(int code)
+{
+    switch(code)
+    {
+        case 1: return "指定チケットが存在しません";
+        case 2: return "チケット番号が無効です（0 以下等）";
+        case 3: return "決済に失敗しました";
+        case 10: return "シンボルが無効です（価格情報を取得できません）";
+        case 11: return "注文情報の取得に失敗しました";
+        default: return ErrorDescription(code);
+    }
+}
+
+//+------------------------------------------------------------------+
+//| 注文結果送信（成功時: type=order_result, request_id, ticket, status=SUCCESS） |
+//+------------------------------------------------------------------+
+void SendOrderResultSuccess(string requestId, int ticket)
 {
     CJAVal result;
     result["type"] = "order_result";
     result["request_id"] = requestId;
     result["ticket"] = ticket;
-    result["status"] = status;
-    string resultStr = result.Serialize();
-    ZmqMsg message(resultStr);
-    if(!pushSocket.send(message, true) && EnableReconnect)
-    isConnected = false;
+    result["status"] = "SUCCESS";
+    SendToPythonWithRetry(result.Serialize(), "order_result(SUCCESS)");
+}
+
+//+------------------------------------------------------------------+
+//| 注文結果・応答失敗送信（失敗時: request_id, status=FAILED, code, message）設計書 2.2 失敗時形式 |
+//+------------------------------------------------------------------+
+void SendOrderResultFailure(string requestId, int code, string message)
+{
+    CJAVal result;
+    if(requestId != "")
+    result["request_id"] = requestId;
+    result["status"] = "FAILED";
+    result["code"] = code;
+    result["message"] = message;
+    SendToPythonWithRetry(result.Serialize(), "order_result(FAILED)");
 }
 
 //+------------------------------------------------------------------+

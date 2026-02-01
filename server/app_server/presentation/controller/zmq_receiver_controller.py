@@ -41,6 +41,11 @@ async def run_zmq_receiver(recv_port: int) -> None:
                             if msg_type == "order_result":
                                 trading_service.on_order_result(raw)
                                 continue
+                            if data.get("status") == "FAILED" and isinstance(
+                                data.get("request_id"), str
+                            ):
+                                trading_service.on_order_result(raw)
+                                continue
                             if msg_type in {"price_info", "order_info_list"}:
                                 continue
                             if msg_type == "pending_opened":

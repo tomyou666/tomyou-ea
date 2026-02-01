@@ -10,7 +10,7 @@ from app_server.domain.sender.base import OrderSender
 from app_server.infrastructure.sender.base import PayloadSenderBase
 from app_server.models.trading import OrderCommand, OrderInfo, OrderInfoList, PriceInfo
 from app_server.share.logger_util import get_logger
-from app_server.share.my_exception import Mt4RequestTimeoutError
+from app_server.share.my_exception import Mt4RequestTimeoutError, Mt4ResponseError
 
 logger = get_logger()
 
@@ -92,7 +92,15 @@ class Mt4OrderSender(OrderSender):
                     logger.warning("PRICE_INFO タイムアウト attempt=%s", attempt + 1)
                     continue
                 data = json.loads(raw)
-                if not isinstance(data, dict) or data.get("type") != "price_info":
+                if not isinstance(data, dict):
+                    last_error = ValueError("応答が JSON オブジェクトではありません")
+                    continue
+                if data.get("status") == "FAILED":
+                    raise Mt4ResponseError(
+                        int(data.get("code", 0)),
+                        str(data.get("message", "")),
+                    )
+                if data.get("type") != "price_info":
                     last_error = ValueError("応答が price_info ではありません")
                     continue
                 if data.get("request_id") != request_id:
@@ -139,7 +147,15 @@ class Mt4OrderSender(OrderSender):
                     logger.warning("ORDER_INFO タイムアウト attempt=%s", attempt + 1)
                     continue
                 data = json.loads(raw)
-                if not isinstance(data, dict) or data.get("type") != "order_info_list":
+                if not isinstance(data, dict):
+                    last_error = ValueError("応答が JSON オブジェクトではありません")
+                    continue
+                if data.get("status") == "FAILED":
+                    raise Mt4ResponseError(
+                        int(data.get("code", 0)),
+                        str(data.get("message", "")),
+                    )
+                if data.get("type") != "order_info_list":
                     last_error = ValueError("応答が order_info_list ではありません")
                     continue
                 if data.get("request_id") != request_id:
