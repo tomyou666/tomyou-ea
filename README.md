@@ -7,7 +7,12 @@ MT4（MetaTrader 4）と Python を ZeroMQ で接続し、ティック配信・�
 - **MT4 クライアント（EA）**: `client/main.mq4` — ティックを CSV で送信し、注文コマンドを JSON で受信
 - **Python サーバー**: FastAPI + ZeroMQ — ティックを受信して戦略・コアロジックで処理し、注文を JSON で MT4 に送信
 
-通信は **ZeroMQ（PUSH/PULL）** のみで、デフォルトでは **5555**（MT4→Python 受信）、**5556**（Python→MT4 送信）を使用します。
+通信は **ZeroMQ（PUSH/PULL）** で、デフォルトでは **5555**（MT4→Python 受信）、**5556**（Python→MT4 送信）を使用します。
+
+## セットアップ後にできること
+
+- **Python サーバーだけ**: この README の手順でサーバーを立ち上げ、`http://localhost:8000/docs` で API が動作していることを確認できます。
+- **MT4 と連携する場合**: EA を導入し、ティック配信・注文送受信まで一通りつなげます。
 
 ## 主な機能
 
@@ -28,24 +33,33 @@ tomyou-ea/
 ├── server/                    # Python サーバー
 │   ├── app_server/
 │   │   ├── config/            # 設定（DI・trading_settings）
-│   │   ├── model/trading/     # DTO（TickDto, OrderCommand 等）
+│   │   ├── models/trading/    # DTO（TickDto, OrderCommand 等）
 │   │   ├── routers/           # FastAPI ルーター
 │   │   ├── domain/
-│   │   │   ├── core_logic/    # 戦略実行・注文判断
 │   │   │   ├── order/         # 注文送信（mock / mt4）
-│   │   │   ├── processor/     # ティック・CSV 処理
-│   │   │   └── strategy/     # 戦略（simple, ma_crossover）
+│   │   │   ├── sender/        # 命令部（payload 送信）
+│   │   │   ├── strategy/     # 戦略（simple, ma_crossover）
+│   │   │   └── ...
+│   │   ├── application/      # ProcessService, TradingService
+│   │   ├── infrastructure/   # 送信・repository
 │   │   └── main.py
-│   ├── resources/             # setting.ini 等
+│   ├── resources/             # setting.ini（本番用）
+│   ├── resources.develop/     # setting.ini（開発用）
 │   ├── tests/
 │   └── pyproject.toml
-├── docs/                      # 設計書・TODO
-│   ├── インターフェース設計書.md
-│   └── TODO.md
+├── docs/
+│   ├── 設計書.md
+│   └── インターフェース設計書.md
 └── README.md
 ```
 
 ## 必要環境
+
+### Python 側
+
+- **Python 3.11+**
+- **uv**（パッケージ・仮想環境の管理に使用。本プロジェクトでは必須です。）
+  - インストール: [uv 公式](https://docs.astral.sh/uv/) の手順に従ってください（例: `pip install uv` または公式のインストールスクリプト）。
 
 ### MT4 側
 
@@ -54,11 +68,6 @@ tomyou-ea/
 - **JAson**（[vivazzi/JAson](https://github.com/vivazzi/JAson)）— JSON シリアライズ
 - `libzmq.dll`, `libsodium.dll` を MT4 の Libraries フォルダに配置
 
-### Python 側
-
-- Python 3.11+
-- パッケージ管理: **uv** 推奨（`pyproject.toml` / `uv.lock`）
-
 ## セットアップ・起動
 
 ### 1. Python サーバー
@@ -66,45 +75,53 @@ tomyou-ea/
 ```bash
 cd server
 uv sync
-# 開発時は resources.develop/setting.ini を編集可能
 uv run fastapi dev app_server/main.py --port 8000
 ```
 
-- ZeroMQ: 受信ポート **5555**、送信ポート **5556**（`resources/setting.ini` または `resources.develop/setting.ini` の `[ZMQ]` で変更可能）
-- API: `http://localhost:8000`（FastAPI）
+- 初回の `uv sync` で依存関係がインストールされます。
+- 起動後は **API**: `http://localhost:8000`（Swagger UI: `http://localhost:8000/docs`）。
 
-### 2. MT4 EA
+### 2. MT4 EA の導入
 
-1. `client/main.mq4` を MT4 の `Experts` に配置
-2. 必要なライブラリ（mql-zmq, JAson, DLL）を導入
-3. チャートに EA をアタッチ
-4. 入力パラメータで `ServerAddress`（例: `tcp://localhost`）、`PushPort`（5555）、`PullPort`（5556）を Python サーバーと一致させる
+1. `client/main.mq4` を MT4 の `Experts` フォルダに配置する。
+2. 必要なライブラリ（mql-zmq, JAson）と DLL（`Libraries/libzmq.dll`, `Libraries/libsodium.dll`,`Include/JAson.mqh`）を MT4 の Libraries に導入する。
+3. MT4 を起動し、チャートに EA をアタッチする。
+4. EA の入力パラメータで以下を Python サーバーと合わせる。
+   - **ServerAddress**: 例 `tcp://localhost`
+   - **PushPort**: 5555（MT4→Python）
+   - **PullPort**: 5556（Python→MT4）
 
 ### 3. 環境変数（オプション）
 
-`server/.env.example` をコピーして `.env` を作成し、JWT・DB 等を設定。ティック＋注文のみ利用する場合は必須ではありません。
+`server/.env.example` をコピーして `server/.env` を作成し設定できます。
 
-## 通信仕様（概要）
+## 設定
 
-| 方向 | 内容 | 形式 |
-|------|------|------|
-| MT4 → Python | ティック | CSV: `symbol,bid,ask,spread,time` |
-| MT4 → Python | 注文結果 | JSON: `{"type":"order_result","ticket":...,"status":"SUCCESS"}` 等 |
-| Python → MT4 | 注文・決済 | JSON: `{"action":"ORDER",...}` / `{"action":"CLOSE","ticket":...}` |
+- **設定ファイル**: `server/resources/setting.ini` が本番用、`server/resources.develop/setting.ini` が開発用です。開発時は `resources.develop/setting.ini` を編集して使います。
+- **[ZMQ]**: `recv_port`（受信: デフォルト 5555）、`send_port`（送信: デフォルト 5556）、`response_timeout_sec`、`retry_count` を変更できます。
+- **[TRADING]**: 売買結果・損益集計の出力先ディレクトリや、結果ファイルを日単位で分けるかなどの設定があります。
+- **環境変数**: 上記のとおり `server/.env` で JWT 等を設定します。
 
-詳細は [docs/インターフェース設計書.md](docs/インターフェース設計書.md) を参照してください。
+## 動作確認・テスト
 
-## テスト
+### サーバーの動作確認
+
+1. 上記「セットアップ・起動」の手順でサーバーを起動する。
+2. ブラウザで `http://localhost:8000/docs` を開き、FastAPI の API 一覧が表示されれば OK です。
+
+### テストの実行
 
 ```bash
 cd server
 uv run pytest
 ```
 
-## ドキュメント
+## ドキュメント・次のステップ
 
+- [設計書](docs/設計書.md) — アーキテクチャ・レイヤー・データフロー
 - [インターフェース設計書](docs/インターフェース設計書.md) — MT4–Python 間のデータ形式・ポート・DTO 対応
-- [TODO](docs/TODO.md) — 未実装項目（例: PriceInfo）
+
+戦略を変えたい場合は `server/app_server/domain/strategy/`、ティックや CSV の処理は `application/process_service/` を参照してください。
 
 ## ライセンス
 
